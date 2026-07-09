@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,8 @@ import eu.europa.esig.dss.token.DSSPrivateKeyEntry;
 import eu.europa.esig.dss.token.SignatureTokenConnection;
 
 import javafx.application.Platform;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
@@ -35,6 +38,8 @@ import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
+import javafx.scene.control.ListView;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
@@ -58,6 +63,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.util.Pair;
@@ -344,15 +350,18 @@ public final class MainView {
     }
 
     private void mergeDocuments() {
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Selecciona los PDF a unir (en orden)");
-        chooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("Documentos PDF", "*.pdf"));
-        List<File> files = chooser.showOpenMultipleDialog(stage);
-        if (files == null || files.size() < 2) {
-            if (files != null) {
-                showError("Unir PDF", "Selecciona al menos dos documentos.");
-            }
+        List<File> files = choosePdfFiles("Selecciona los PDF a unir");
+        if (files == null || files.isEmpty()) {
+            return;
+        }
+        List<Path> initial = new ArrayList<>(files.stream().map(File::toPath).toList());
+        Optional<List<Path>> ordered = reviewMerge(initial);
+        if (ordered.isEmpty()) {
+            return;
+        }
+        List<Path> inputs = ordered.get();
+        if (inputs.size() < 2) {
+            showError("Unir PDF", "Se necesitan al menos dos documentos para unir.");
             return;
         }
         FileChooser saveChooser = new FileChooser();
@@ -364,7 +373,6 @@ public final class MainView {
         if (output == null) {
             return;
         }
-        List<Path> inputs = files.stream().map(File::toPath).toList();
         statusLabel.setText("Uniendo " + inputs.size() + " documentos…");
         runBackground(() -> {
             PdfOperations.merge(inputs, output.toPath());
@@ -375,6 +383,100 @@ public final class MainView {
                 }
             });
         }, "No se pudieron unir los documentos");
+    }
+
+    private List<File> choosePdfFiles(String title) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle(title);
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Documentos PDF", "*.pdf"));
+        return chooser.showOpenMultipleDialog(stage);
+    }
+
+    /** Pantalla de revisión: reordenar, quitar o añadir documentos a unir. */
+    private Optional<List<Path>> reviewMerge(List<Path> initial) {
+        ObservableList<Path> items = FXCollections.observableArrayList(initial);
+        Map<Path, Integer> pageCounts = new HashMap<>();
+        for (Path path : initial) {
+            pageCounts.put(path, safePageCount(path));
+        }
+
+        ListView<Path> list = new ListView<>(items);
+        list.setPrefSize(460, 320);
+        list.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(Path path, boolean empty) {
+                super.updateItem(path, empty);
+                if (empty || path == null) {
+                    setText(null);
+                    return;
+                }
+                int count = pageCounts.getOrDefault(path, -1);
+                setText((getIndex() + 1) + ".  " + path.getFileName()
+                        + (count >= 0 ? "   ·   " + count + " págs" : "   ·   (no legible)"));
+            }
+        });
+
+        Button up = new Button("▲ Subir");
+        Button down = new Button("▼ Bajar");
+        Button remove = new Button("Quitar");
+        Button add = new Button("Añadir…");
+        for (Button b : new Button[]{up, down, remove, add}) {
+            b.setMaxWidth(Double.MAX_VALUE);
+        }
+        up.setOnAction(e -> {
+            int i = list.getSelectionModel().getSelectedIndex();
+            if (i > 0) {
+                items.add(i - 1, items.remove(i));
+                list.getSelectionModel().select(i - 1);
+            }
+        });
+        down.setOnAction(e -> {
+            int i = list.getSelectionModel().getSelectedIndex();
+            if (i >= 0 && i < items.size() - 1) {
+                items.add(i + 1, items.remove(i));
+                list.getSelectionModel().select(i + 1);
+            }
+        });
+        remove.setOnAction(e -> {
+            int i = list.getSelectionModel().getSelectedIndex();
+            if (i >= 0) {
+                items.remove(i);
+            }
+        });
+        add.setOnAction(e -> {
+            List<File> more = choosePdfFiles("Añadir documentos");
+            if (more != null) {
+                for (File file : more) {
+                    Path path = file.toPath();
+                    pageCounts.put(path, safePageCount(path));
+                    items.add(path);
+                }
+            }
+        });
+
+        VBox buttons = new VBox(8, up, down, remove, new Separator(), add);
+        buttons.setPrefWidth(120);
+        HBox content = new HBox(12, list, buttons);
+        HBox.setHgrow(list, Priority.ALWAYS);
+        content.setPadding(new Insets(12));
+
+        Dialog<List<Path>> dialog = new Dialog<>();
+        dialog.setTitle("Unir PDF — revisión");
+        dialog.setHeaderText("Ordena los documentos (se unirán de arriba a abajo)");
+        dialog.initOwner(stage);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        dialog.getDialogPane().setContent(content);
+        dialog.setResultConverter(b -> b == ButtonType.OK ? new ArrayList<>(items) : null);
+        return dialog.showAndWait();
+    }
+
+    private int safePageCount(Path path) {
+        try (PdfDocument doc = PdfDocument.open(path)) {
+            return doc.pageCount();
+        } catch (Exception ex) {
+            return -1;
+        }
     }
 
     private void extractRange() {
