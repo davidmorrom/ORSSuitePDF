@@ -27,10 +27,10 @@ public class Main extends Application {
         stage.setScene(scene);
         stage.show();
 
-        // Permite abrir un PDF pasado como argumento (asociación de archivos).
-        var args = getParameters().getRaw();
-        if (!args.isEmpty()) {
-            java.nio.file.Path path = java.nio.file.Path.of(args.get(0));
+        // Permite abrir PDF pasados como argumentos (asociación de archivos),
+        // cada uno en su propia pestaña.
+        for (String arg : getParameters().getRaw()) {
+            java.nio.file.Path path = java.nio.file.Path.of(arg);
             if (java.nio.file.Files.exists(path)) {
                 mainView.open(path);
             }

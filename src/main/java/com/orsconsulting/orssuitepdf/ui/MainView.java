@@ -80,11 +80,17 @@ public final class MainView {
     private static final String APP_NAME = "ORS Suite PDF";
 
     private final Stage stage;
-    private final AppState state = new AppState();
-    private final PdfView pdfView = new PdfView(state);
-    private final BookmarkPanel bookmarkPanel = new BookmarkPanel(state);
-    private final FormPanel formPanel = new FormPanel(state);
     private final BorderPane root = new BorderPane();
+
+    /** Una pestaña por documento abierto. */
+    private final TabPane documentsPane = new TabPane();
+    private final Map<Tab, DocumentSession> sessions = new HashMap<>();
+    /** Estado "vacío" cuando no hay ningún documento abierto. */
+    private final AppState emptyState = new AppState();
+
+    /** Estado y visor de la pestaña activa (o los vacíos si no hay ninguna). */
+    private AppState state = emptyState;
+    private PdfView pdfView;
 
     private final Label pageLabel = new Label("—");
     private final Label zoomLabel = new Label("100 %");
@@ -103,14 +109,16 @@ public final class MainView {
         root.setCenter(buildWorkspace());
         root.setBottom(buildStatusBar());
 
-        state.documentProperty().addListener((obs, oldDoc, newDoc) -> refreshControls());
-        state.currentPageProperty().addListener((obs, oldP, newP) -> refreshControls());
-        state.zoomProperty().addListener((obs, oldZ, newZ) -> refreshControls());
-        state.revisionProperty().addListener((obs, oldR, newR) -> refreshControls());
-        state.dirtyProperty().addListener((obs, oldD, newD) -> updateTitle());
+        documentsPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            DocumentSession session = newTab == null ? null : sessions.get(newTab);
+            state = session != null ? session.state : emptyState;
+            pdfView = session != null ? session.pdfView : null;
+            refreshControls();
+            updateTitle();
+        });
 
         stage.setOnCloseRequest(event -> {
-            if (!confirmDiscardChanges()) {
+            if (!confirmCloseAll()) {
                 event.consume();
             }
         });
@@ -126,17 +134,8 @@ public final class MainView {
     // ---------------------------------------------------------------- barras
 
     private Region buildWorkspace() {
-        Tab bookmarksTab = new Tab("Marcadores", bookmarkPanel);
-        bookmarksTab.setClosable(false);
-        Tab formTab = new Tab("Formulario", formPanel);
-        formTab.setClosable(false);
-        TabPane sidebar = new TabPane(bookmarksTab, formTab);
-        sidebar.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-
-        SplitPane split = new SplitPane(sidebar, pdfView);
-        split.setDividerPositions(0.24);
-        SplitPane.setResizableWithParent(sidebar, Boolean.FALSE);
-        return split;
+        documentsPane.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
+        return documentsPane;
     }
 
     private Region buildTopBar() {
@@ -164,7 +163,7 @@ public final class MainView {
         Menu export = buildExportMenu();
         MenuItem exit = new MenuItem("Salir");
         exit.setOnAction(e -> {
-            if (confirmDiscardChanges()) {
+            if (confirmCloseAll()) {
                 Platform.exit();
             }
         });
@@ -263,9 +262,6 @@ public final class MainView {
     // ----------------------------------------------------- apertura/guardado
 
     private void openDocument() {
-        if (!confirmDiscardChanges()) {
-            return;
-        }
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Abrir PDF");
         chooser.getExtensionFilters().add(
@@ -282,12 +278,18 @@ public final class MainView {
         loadInBackground(path);
     }
 
+    /** Abre el documento en una pestaña nueva. */
     private void loadInBackground(Path path) {
         statusLabel.setText("Abriendo " + path.getFileName() + "…");
         runBackground(() -> {
             PdfDocument doc = PdfDocument.open(path);
             Platform.runLater(() -> {
-                state.setDocument(doc);
+                DocumentSession session = new DocumentSession();
+                session.state.setDocument(doc);
+                sessions.put(session.tab, session);
+                updateTabTitle(session);
+                documentsPane.getTabs().add(session.tab);
+                documentsPane.getSelectionModel().select(session.tab);
                 statusLabel.setText(path.getFileName() + "  ·  " + doc.pageCount() + " páginas");
             });
         }, "No se pudo abrir el PDF");
@@ -1118,14 +1120,28 @@ public final class MainView {
         return dialog.showAndWait();
     }
 
-    private boolean confirmDiscardChanges() {
-        if (!state.isDirty()) {
+    private boolean confirmDiscard(AppState target) {
+        if (!target.isDirty()) {
             return true;
         }
         Alert alert = new Alert(AlertType.CONFIRMATION);
         alert.setTitle("Cambios sin guardar");
         alert.setHeaderText("El documento tiene cambios sin guardar.");
-        alert.setContentText("¿Descartar los cambios?");
+        alert.setContentText("¿Descartar los cambios de esta pestaña?");
+        alert.initOwner(stage);
+        Optional<ButtonType> result = alert.showAndWait();
+        return result.isPresent() && result.get() == ButtonType.OK;
+    }
+
+    private boolean confirmCloseAll() {
+        boolean anyDirty = sessions.values().stream().anyMatch(s -> s.state.isDirty());
+        if (!anyDirty) {
+            return true;
+        }
+        Alert alert = new Alert(AlertType.CONFIRMATION);
+        alert.setTitle("Cambios sin guardar");
+        alert.setHeaderText("Hay documentos con cambios sin guardar.");
+        alert.setContentText("¿Salir sin guardar?");
         alert.initOwner(stage);
         Optional<ButtonType> result = alert.showAndWait();
         return result.isPresent() && result.get() == ButtonType.OK;
@@ -1180,6 +1196,92 @@ public final class MainView {
     @FunctionalInterface
     private interface BackgroundTask {
         void run() throws Exception;
+    }
+
+    // --------------------------------------------------------- pestañas
+
+    private boolean isActive(DocumentSession session) {
+        Tab selected = documentsPane.getSelectionModel().getSelectedItem();
+        return selected != null && sessions.get(selected) == session;
+    }
+
+    private void updateTabTitle(DocumentSession session) {
+        Path source = session.state.hasDocument() ? session.state.getDocument().source() : null;
+        String name = source != null ? source.getFileName().toString() : "documento";
+        session.tab.setText(name + (session.state.isDirty() ? " *" : ""));
+    }
+
+    private void onTabClosed(DocumentSession session) {
+        sessions.remove(session.tab);
+        PdfDocument document = session.state.getDocument();
+        if (document != null) {
+            try {
+                document.close();
+            } catch (Exception ignored) {
+                // El cierre del documento no debe interrumpir el cierre de la pestaña.
+            }
+        }
+    }
+
+    /**
+     * Estado y vistas de un documento abierto en su pestaña. Cada sesión tiene
+     * su propio {@link AppState}, visor y paneles laterales.
+     */
+    private final class DocumentSession {
+
+        private final AppState state = new AppState();
+        private final PdfView pdfView = new PdfView(state);
+        private final Tab tab = new Tab();
+
+        DocumentSession() {
+            Tab bookmarks = new Tab("Marcadores", new BookmarkPanel(state));
+            bookmarks.setClosable(false);
+            Tab form = new Tab("Formulario", new FormPanel(state));
+            form.setClosable(false);
+            TabPane sidebar = new TabPane(bookmarks, form);
+            sidebar.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+
+            SplitPane split = new SplitPane(sidebar, pdfView);
+            split.setDividerPositions(0.24);
+            SplitPane.setResizableWithParent(sidebar, Boolean.FALSE);
+            tab.setContent(split);
+
+            state.documentProperty().addListener((o, a, b) -> {
+                updateTabTitle(this);
+                if (isActive(this)) {
+                    refreshControls();
+                    updateTitle();
+                }
+            });
+            state.currentPageProperty().addListener((o, a, b) -> {
+                if (isActive(this)) {
+                    refreshControls();
+                }
+            });
+            state.zoomProperty().addListener((o, a, b) -> {
+                if (isActive(this)) {
+                    refreshControls();
+                }
+            });
+            state.revisionProperty().addListener((o, a, b) -> {
+                if (isActive(this)) {
+                    refreshControls();
+                }
+            });
+            state.dirtyProperty().addListener((o, a, b) -> {
+                updateTabTitle(this);
+                if (isActive(this)) {
+                    updateTitle();
+                }
+            });
+
+            tab.setOnCloseRequest(event -> {
+                if (!confirmDiscard(state)) {
+                    event.consume();
+                }
+            });
+            tab.setOnClosed(event -> onTabClosed(this));
+        }
     }
 
     /** Resultado del diálogo de inserción de imagen: esquina y anchura (pt). */
