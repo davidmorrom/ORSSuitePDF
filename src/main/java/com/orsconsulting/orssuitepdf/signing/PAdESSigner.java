@@ -1,9 +1,7 @@
 package com.orsconsulting.orssuitepdf.signing;
 
 import java.awt.Font;
-import java.security.cert.X509Certificate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 import eu.europa.esig.dss.enumerations.SignatureLevel;
 import eu.europa.esig.dss.model.DSSDocument;
@@ -116,28 +114,27 @@ public final class PAdESSigner {
 
         SignatureImageTextParameters text = new SignatureImageTextParameters();
         text.setText(visible.text() != null ? visible.text() : defaultText(key));
-        text.setFont(new DSSJavaFont(Font.SANS_SERIF, Font.PLAIN, 8));
+        text.setFont(new DSSJavaFont(Font.SANS_SERIF, Font.PLAIN, 9));
+        text.setTextColor(new java.awt.Color(0x1C, 0x3C, 0x72)); // azul de marca
+        text.setBackgroundColor(java.awt.Color.WHITE);
+        text.setPadding(6f);
+        text.setSignerTextHorizontalAlignment(
+                eu.europa.esig.dss.enumerations.SignerTextHorizontalAlignment.LEFT);
         image.setTextParameters(text);
+        image.setBackgroundColor(java.awt.Color.WHITE);
         return image;
     }
 
     private String defaultText(DSSPrivateKeyEntry key) {
-        String signer = commonName(key);
-        String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
-        return "Firmado digitalmente por:\n" + signer + "\n" + date;
+        CertificateInfo info = CertificateInfo.from(key);
+        return SignatureAppearance.defaults().buildText(info, null, null, LocalDateTime.now());
     }
 
-    /** Nombre común (CN) del certificado, o el DN completo si no se encuentra. */
+    /** Nombre legible del firmante (para elegir en una lista de certificados). */
     public static String commonName(DSSPrivateKeyEntry key) {
-        X509Certificate certificate = key.getCertificate().getCertificate();
-        String dn = certificate.getSubjectX500Principal().getName();
-        for (String part : dn.split(",")) {
-            String token = part.trim();
-            if (token.regionMatches(true, 0, "CN=", 0, 3)) {
-                return token.substring(3);
-            }
-        }
-        return dn;
+        CertificateInfo info = CertificateInfo.from(key);
+        String name = info.fullName(false);
+        return name != null && !name.isBlank() ? name : info.commonName();
     }
 
     private CommonsDataLoader timeoutLoader() {

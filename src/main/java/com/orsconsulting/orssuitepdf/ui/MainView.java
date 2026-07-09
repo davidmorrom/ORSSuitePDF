@@ -22,9 +22,11 @@ import com.orsconsulting.orssuitepdf.core.SecurityService;
 import com.orsconsulting.orssuitepdf.core.StampService;
 import com.orsconsulting.orssuitepdf.core.WatermarkService;
 import com.orsconsulting.orssuitepdf.ocr.OcrService;
+import com.orsconsulting.orssuitepdf.signing.CertificateInfo;
 import com.orsconsulting.orssuitepdf.signing.PAdESSigner;
 import com.orsconsulting.orssuitepdf.signing.SignResult;
 import com.orsconsulting.orssuitepdf.signing.SignSpec;
+import com.orsconsulting.orssuitepdf.signing.SignatureAppearance;
 import com.orsconsulting.orssuitepdf.signing.SignatureValidationService;
 import com.orsconsulting.orssuitepdf.signing.SigningTokens;
 import com.orsconsulting.orssuitepdf.signing.VisibleSignature;
@@ -1371,11 +1373,6 @@ public final class MainView {
                     "Guarda los cambios del documento (Ctrl+S) antes de firmarlo.");
             return;
         }
-        Optional<SignOptions> options = askSigningOptions();
-        if (options.isEmpty()) {
-            return;
-        }
-        SignOptions opts = options.get();
 
         // Firma con el almacén de certificados de Windows. Cubre tanto los
         // certificados software instalados como el DNIe/tarjeta insertada (sus
@@ -1409,10 +1406,17 @@ public final class MainView {
             return;
         }
 
+        CertificateInfo info = CertificateInfo.from(key);
+        Optional<SignSetup> setup = askSignSetup(info);
+        if (setup.isEmpty()) {
+            closeQuietly(token);
+            return;
+        }
+        SignSetup s = setup.get();
         Path output = deriveSignedPath(source);
         DSSPrivateKeyEntry chosenKey = key;
 
-        if (opts.visible()) {
+        if (s.visible()) {
             statusLabel.setText("Dibuja el recuadro de la firma sobre la página…");
             pdfView.beginRegionSelection(region -> {
                 if (region == null) {
@@ -1420,15 +1424,17 @@ public final class MainView {
                     statusLabel.setText("Firma cancelada");
                     return;
                 }
+                String text = s.appearance().buildText(info, s.reason(), s.location(),
+                        java.time.LocalDateTime.now());
                 VisibleSignature visible = new VisibleSignature(region.page(),
                         (float) region.x(), (float) region.y(),
-                        (float) region.width(), (float) region.height(), null);
+                        (float) region.width(), (float) region.height(), text);
                 runSign(token, chosenKey,
-                        new SignSpec(source, output, opts.tsaUrl(), opts.reason(), opts.location(), visible));
+                        new SignSpec(source, output, s.tsaUrl(), s.reason(), s.location(), visible));
             });
         } else {
             runSign(token, chosenKey,
-                    new SignSpec(source, output, opts.tsaUrl(), opts.reason(), opts.location(), null));
+                    new SignSpec(source, output, s.tsaUrl(), s.reason(), s.location(), null));
         }
     }
 
@@ -1483,46 +1489,127 @@ public final class MainView {
         return source.resolveSibling(base + "-firmado.pdf");
     }
 
-    private Optional<SignOptions> askSigningOptions() {
-        Dialog<SignOptions> dialog = new Dialog<>();
-        dialog.setTitle("Firmar con certificado");
-        dialog.setHeaderText("Firma digital PAdES con el almacén de certificados de Windows");
+    /** Diálogo de firma estilo Adobe: opciones de apariencia + vista previa en vivo. */
+    private Optional<SignSetup> askSignSetup(CertificateInfo info) {
+        Dialog<SignSetup> dialog = new Dialog<>();
+        String signerName = info.fullName(false);
+        dialog.setTitle("Firmar como «" + (signerName.isBlank() ? info.commonName() : signerName) + "»");
         dialog.initOwner(stage);
-        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        ButtonType signType = new ButtonType("Firmar", ButtonType.OK.getButtonData());
+        dialog.getDialogPane().getButtonTypes().addAll(signType, ButtonType.CANCEL);
 
-        TextField tsaField = new TextField("https://freetsa.org/tsr");
-        tsaField.setPromptText("URL de TSA (vacío = sin sello de tiempo)");
+        // --- Opciones de apariencia ---
+        CheckBox visibleBox = new CheckBox("Insertar firma visible en el documento");
+        visibleBox.setSelected(true);
+        CheckBox headingBox = new CheckBox("Encabezado:");
+        headingBox.setSelected(true);
+        TextField headingField = new TextField("Firmado digitalmente por");
+        CheckBox nameBox = new CheckBox("Nombre y apellidos");
+        nameBox.setSelected(true);
+        ComboBox<String> nameOrder = new ComboBox<>();
+        nameOrder.getItems().addAll("Nombre Apellidos", "Apellidos, Nombre");
+        nameOrder.setValue("Nombre Apellidos");
+        CheckBox nifBox = new CheckBox("NIF / DNI");
+        nifBox.setSelected(info.hasNif());
+        nifBox.setDisable(!info.hasNif());
+        CheckBox reasonBox = new CheckBox("Motivo");
+        CheckBox locationBox = new CheckBox("Lugar");
+        CheckBox dateBox = new CheckBox("Fecha");
+        dateBox.setSelected(true);
+        CheckBox timeBox = new CheckBox("Hora");
+        timeBox.setSelected(true);
+
         TextField reasonField = new TextField();
         reasonField.setPromptText("Motivo (opcional)");
         TextField locationField = new TextField();
         locationField.setPromptText("Lugar (opcional)");
-        CheckBox visibleBox = new CheckBox("Firma visible en el documento (seleccionar recuadro)");
+        TextField tsaField = new TextField("https://freetsa.org/tsr");
+        tsaField.setPromptText("URL de TSA (vacío = sin sello de tiempo)");
 
-        Label hint = new Label("Se usará un certificado del almacén de Windows. "
-                + "Para el DNIe, inserta la tarjeta; el sistema pedirá el PIN al firmar.");
-        hint.setWrapText(true);
-        hint.getStyleClass().add("text-muted");
-        hint.setMaxWidth(360);
+        VBox options = new VBox(8,
+                visibleBox,
+                new Separator(),
+                new Label("Aspecto de la firma"),
+                headingBox, headingField,
+                nameBox, nameOrder,
+                nifBox, reasonBox, locationBox,
+                new HBox(16, dateBox, timeBox),
+                new Separator(),
+                labeled("Motivo:", reasonField),
+                labeled("Lugar:", locationField),
+                labeled("Sello de tiempo (TSA):", tsaField));
+        options.setPrefWidth(340);
 
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.setPadding(new Insets(16));
-        grid.add(hint, 0, 0, 2, 1);
-        grid.add(new Label("TSA:"), 0, 1);
-        grid.add(tsaField, 1, 1);
-        grid.add(new Label("Motivo:"), 0, 2);
-        grid.add(reasonField, 1, 2);
-        grid.add(new Label("Lugar:"), 0, 3);
-        grid.add(locationField, 1, 3);
-        grid.add(visibleBox, 1, 4);
-        dialog.getDialogPane().setContent(grid);
+        // --- Vista previa en vivo ---
+        Label preview = new Label();
+        preview.setWrapText(true);
+        preview.setStyle("-fx-font-family: 'sans-serif'; -fx-font-size: 12px; -fx-text-fill: #1C3C72;"
+                + " -fx-background-color: white; -fx-border-color: #1A5EA8; -fx-border-width: 1;"
+                + " -fx-padding: 10; -fx-min-height: 90;");
+        preview.setMaxWidth(Double.MAX_VALUE);
+        VBox previewBox = new VBox(6, new Label("Vista previa"), preview);
+        previewBox.setPrefWidth(280);
 
-        dialog.setResultConverter(button -> button == ButtonType.OK
-                ? new SignOptions(tsaField.getText(), reasonField.getText(),
-                        locationField.getText(), visibleBox.isSelected())
-                : null);
+        Runnable refreshPreview = () -> {
+            SignatureAppearance app = new SignatureAppearance(
+                    headingBox.isSelected(), headingField.getText(),
+                    nameBox.isSelected(), nameOrder.getValue().startsWith("Apellidos"),
+                    nifBox.isSelected(),
+                    reasonBox.isSelected(), locationBox.isSelected(),
+                    dateBox.isSelected(), timeBox.isSelected());
+            String text = app.buildText(info, reasonField.getText(), locationField.getText(),
+                    java.time.LocalDateTime.now());
+            preview.setText(text.isBlank() ? "(sin contenido)" : text);
+            boolean vis = visibleBox.isSelected();
+            for (var node : new javafx.scene.control.Control[]{headingBox, headingField, nameBox,
+                    nameOrder, nifBox, reasonBox, locationBox, dateBox, timeBox}) {
+                node.setDisable(!vis || (node == nifBox && !info.hasNif()));
+            }
+            previewBox.setDisable(!vis);
+        };
+        for (CheckBox cb : new CheckBox[]{visibleBox, headingBox, nameBox, nifBox, reasonBox,
+                locationBox, dateBox, timeBox}) {
+            cb.selectedProperty().addListener((o, a, b) -> refreshPreview.run());
+        }
+        nameOrder.valueProperty().addListener((o, a, b) -> refreshPreview.run());
+        headingField.textProperty().addListener((o, a, b) -> refreshPreview.run());
+        reasonField.textProperty().addListener((o, a, b) -> refreshPreview.run());
+        locationField.textProperty().addListener((o, a, b) -> refreshPreview.run());
+        refreshPreview.run();
+
+        Label pinHint = new Label("Al firmar, el sistema pedirá el PIN si usas DNIe o tarjeta.");
+        pinHint.getStyleClass().add("text-muted");
+        pinHint.setWrapText(true);
+        previewBox.getChildren().add(pinHint);
+
+        HBox content = new HBox(20, options, previewBox);
+        content.setPadding(new Insets(16));
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().setHeaderText(null);
+
+        dialog.setResultConverter(button -> {
+            if (button != signType) {
+                return null;
+            }
+            SignatureAppearance app = new SignatureAppearance(
+                    headingBox.isSelected(), headingField.getText(),
+                    nameBox.isSelected(), nameOrder.getValue().startsWith("Apellidos"),
+                    nifBox.isSelected(),
+                    reasonBox.isSelected(), locationBox.isSelected(),
+                    dateBox.isSelected(), timeBox.isSelected());
+            return new SignSetup(tsaField.getText(), reasonField.getText(),
+                    locationField.getText(), visibleBox.isSelected(), app);
+        });
         return dialog.showAndWait();
+    }
+
+    private HBox labeled(String label, javafx.scene.Node field) {
+        Label l = new Label(label);
+        l.setMinWidth(150);
+        HBox box = new HBox(8, l, field);
+        box.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(field, Priority.ALWAYS);
+        return box;
     }
 
     // ------------------------------------------------- operaciones de página
@@ -1893,6 +1980,7 @@ public final class MainView {
     }
 
     /** Opciones recogidas en el diálogo de firma. */
-    private record SignOptions(String tsaUrl, String reason, String location, boolean visible) {
+    private record SignSetup(String tsaUrl, String reason, String location, boolean visible,
+                             SignatureAppearance appearance) {
     }
 }
