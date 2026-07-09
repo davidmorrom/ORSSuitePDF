@@ -1042,7 +1042,14 @@ public final class MainView {
             PdfDocument current = state.getDocument();
             Path parent = target.toAbsolutePath().getParent();
             Path tmp = Files.createTempFile(parent, "ors", ".pdf");
-            PdfOperations.save(current.pdbox(), tmp);
+            // Si el documento tiene firmas digitales, se guarda de forma
+            // incremental (append-only) para no romper su ByteRange; un guardado
+            // normal reescribe el fichero e invalida las firmas (HASH_FAILURE).
+            if (current.hasSignatures()) {
+                PdfOperations.saveIncremental(current.pdbox(), tmp);
+            } else {
+                PdfOperations.save(current.pdbox(), tmp);
+            }
             current.close();
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
             PdfDocument reopened = PdfDocument.open(target);
@@ -1215,7 +1222,7 @@ public final class MainView {
     }
 
     private void insertImage() {
-        if (!state.hasDocument()) {
+        if (!state.hasDocument() || !ensureCanModifySigned()) {
             return;
         }
         FileChooser chooser = new FileChooser();
@@ -1266,7 +1273,7 @@ public final class MainView {
     }
 
     private void insertText() {
-        if (!state.hasDocument()) {
+        if (!state.hasDocument() || !ensureCanModifySigned()) {
             return;
         }
         Optional<TextContent> content = askText();
@@ -1552,7 +1559,7 @@ public final class MainView {
     // ------------------------------------------------ marca de agua / nº
 
     private void addWatermark() {
-        if (!state.hasDocument()) {
+        if (!state.hasDocument() || !ensureCanModifySigned()) {
             return;
         }
         javafx.scene.control.TextInputDialog dialog =
@@ -1575,7 +1582,7 @@ public final class MainView {
     }
 
     private void numberPages() {
-        if (!state.hasDocument()) {
+        if (!state.hasDocument() || !ensureCanModifySigned()) {
             return;
         }
         try {
@@ -1590,7 +1597,7 @@ public final class MainView {
     // --------------------------------------------------------- redacción
 
     private void redactZone() {
-        if (!state.hasDocument()) {
+        if (!state.hasDocument() || !ensureCanModifySigned()) {
             return;
         }
         statusLabel.setText("Dibuja la zona a redactar sobre la página…");
@@ -1981,7 +1988,7 @@ public final class MainView {
 
     /** Ejecuta una mutación in situ y refresca el visor, capturando errores. */
     private void mutate(Runnable operation) {
-        if (!state.hasDocument()) {
+        if (!state.hasDocument() || !ensureCanModifySigned()) {
             return;
         }
         try {
@@ -1990,6 +1997,26 @@ public final class MainView {
         } catch (Exception ex) {
             showError("No se pudo completar la operación", ex.getMessage());
         }
+    }
+
+    /**
+     * Si el documento tiene firmas digitales, advierte de que la operación
+     * quedará registrada como un cambio posterior a la firma y pide
+     * confirmación. Devuelve {@code true} si se puede continuar.
+     *
+     * <p>El guardado de estos cambios es incremental (ver
+     * {@code PdfOperations.saveIncremental}), así que la firma no se corrompe
+     * criptográficamente, pero el documento constará como modificado tras
+     * firmarse — algo que el usuario debe decidir conscientemente.</p>
+     */
+    private boolean ensureCanModifySigned() {
+        if (!state.hasDocument() || !state.getDocument().hasSignatures()) {
+            return true;
+        }
+        return confirm("Documento firmado",
+                "Este documento contiene firmas digitales. Si lo modificas, el "
+                        + "cambio se registrará después de la firma y los validadores "
+                        + "podrán marcarlo como alterado tras firmar.\n\n¿Continuar?");
     }
 
     // ---------------------------------------------------------- navegación

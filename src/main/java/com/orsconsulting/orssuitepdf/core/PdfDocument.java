@@ -68,6 +68,15 @@ public final class PdfDocument implements Closeable {
         return document;
     }
 
+    /**
+     * {@code true} si el documento contiene al menos una firma digital. En ese
+     * caso el guardado debe ser incremental (append-only) para no romper el
+     * {@code ByteRange} firmado — ver {@link PdfOperations#saveIncremental}.
+     */
+    public boolean hasSignatures() {
+        return !document.getSignatureDictionaries().isEmpty();
+    }
+
     /** Anchura de la página (cropBox) en puntos. */
     public float pageWidth(int pageIndex) {
         return document.getPage(pageIndex).getCropBox().getWidth();

@@ -1,6 +1,8 @@
 package com.orsconsulting.orssuitepdf.core;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -106,6 +108,26 @@ public final class PdfOperations {
     /** Guarda el documento en la ruta indicada. */
     public static void save(PDDocument document, Path output) throws IOException {
         document.save(output.toFile());
+    }
+
+    /**
+     * Guarda el documento de forma <strong>incremental</strong> (append-only):
+     * escribe los bytes originales tal cual y añade al final una actualización
+     * con los cambios. Esto preserva el {@code ByteRange} de las firmas
+     * digitales existentes, que un guardado normal ({@link #save}) rompería al
+     * reescribir el fichero entero.
+     *
+     * <p>Requiere que el documento se cargara desde una fuente re-leíble (un
+     * fichero), condición que cumple {@link PdfDocument#open(Path)}. Los cambios
+     * puramente aditivos (anotaciones, campos de formulario, una firma nueva)
+     * mantienen válidas las firmas previas; los cambios estructurales (rotar,
+     * borrar o mover páginas) las invalidan igualmente por naturaleza del
+     * formato, aunque el guardado incremental deje el fichero bien formado.</p>
+     */
+    public static void saveIncremental(PDDocument document, Path output) throws IOException {
+        try (OutputStream out = Files.newOutputStream(output)) {
+            document.saveIncremental(out);
+        }
     }
 
     private static PDPage requirePage(PDDocument document, int pageIndex) {
