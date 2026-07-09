@@ -26,6 +26,15 @@ public class Main extends Application {
         stage.setTitle("ORS Suite PDF");
         stage.setScene(scene);
         stage.show();
+
+        // Permite abrir un PDF pasado como argumento (asociación de archivos).
+        var args = getParameters().getRaw();
+        if (!args.isEmpty()) {
+            java.nio.file.Path path = java.nio.file.Path.of(args.get(0));
+            if (java.nio.file.Files.exists(path)) {
+                mainView.open(path);
+            }
+        }
     }
 
     public static void main(String[] args) {

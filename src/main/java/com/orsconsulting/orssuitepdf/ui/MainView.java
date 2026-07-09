@@ -257,6 +257,11 @@ public final class MainView {
         loadInBackground(selected.toPath());
     }
 
+    /** Abre un documento por su ruta (p. ej. desde la línea de comandos). */
+    public void open(Path path) {
+        loadInBackground(path);
+    }
+
     private void loadInBackground(Path path) {
         statusLabel.setText("Abriendo " + path.getFileName() + "…");
         runBackground(() -> {
