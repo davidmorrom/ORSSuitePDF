@@ -1,13 +1,16 @@
 package com.orsconsulting.orssuitepdf.ui;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import com.orsconsulting.orssuitepdf.core.PdfDocument;
+import com.orsconsulting.orssuitepdf.core.SearchService;
 
 import javafx.application.Platform;
 import javafx.scene.Cursor;
@@ -58,6 +61,9 @@ public final class PdfView extends StackPane {
     /** Callback activo mientras se selecciona una región (firma visible). */
     private Consumer<PageRegion> pendingSelection;
 
+    /** Coincidencias de búsqueda a resaltar, por página (recuadros en puntos). */
+    private final Map<Integer, List<double[]>> matchesByPage = new HashMap<>();
+
     public PdfView(AppState state) {
         this.state = state;
 
@@ -94,6 +100,7 @@ public final class PdfView extends StackPane {
 
     private void rebuild() {
         cells.clear();
+        matchesByPage.clear();
         pagesBox.getChildren().clear();
 
         PdfDocument doc = state.getDocument();
@@ -119,8 +126,33 @@ public final class PdfView extends StackPane {
         for (PageCell cell : cells) {
             cell.resizeToPage();
             cell.invalidate();
+            cell.refreshMatches();
         }
         Platform.runLater(this::onViewportChanged);
+    }
+
+    /** Resalta las coincidencias de búsqueda (borra las anteriores). */
+    public void setSearchMatches(List<SearchService.Match> matches) {
+        matchesByPage.clear();
+        for (SearchService.Match match : matches) {
+            matchesByPage.computeIfAbsent(match.page(), k -> new ArrayList<>())
+                    .add(new double[]{match.x(), match.y(), match.width(), match.height()});
+        }
+        for (PageCell cell : cells) {
+            cell.refreshMatches();
+        }
+    }
+
+    public void clearSearchMatches() {
+        matchesByPage.clear();
+        for (PageCell cell : cells) {
+            cell.refreshMatches();
+        }
+    }
+
+    /** Desplaza para mostrar la página indicada (para saltar a una coincidencia). */
+    public void goToPage(int page) {
+        scrollToPage(page);
     }
 
     // ------------------------------------------------------------ scroll
@@ -205,6 +237,7 @@ public final class PdfView extends StackPane {
         private double renderedZoom = -1;
 
         private final Rectangle selectionRect = new Rectangle();
+        private final List<Rectangle> matchRects = new ArrayList<>();
         private double startX;
         private double startY;
 
@@ -268,6 +301,27 @@ public final class PdfView extends StackPane {
 
         private double clampToPage(double value, double max) {
             return Math.max(0, Math.min(max, value));
+        }
+
+        /** Redibuja los recuadros de las coincidencias de búsqueda de esta página. */
+        void refreshMatches() {
+            getChildren().removeAll(matchRects);
+            matchRects.clear();
+            List<double[]> boxes = matchesByPage.get(index);
+            if (boxes == null) {
+                return;
+            }
+            double scale = state.getZoom() * BASE_DPI / 72.0;
+            for (double[] box : boxes) {
+                Rectangle rect = new Rectangle(box[0] * scale, box[1] * scale,
+                        box[2] * scale, box[3] * scale);
+                rect.setManaged(false);
+                rect.setFill(Color.web("#ffd54f", 0.45));
+                rect.setStroke(Color.web("#f9a825"));
+                rect.setStrokeWidth(1);
+                matchRects.add(rect);
+                getChildren().add(rect);
+            }
         }
 
         void resizeToPage() {

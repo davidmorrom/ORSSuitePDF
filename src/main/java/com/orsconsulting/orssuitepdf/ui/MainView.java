@@ -17,6 +17,7 @@ import com.orsconsulting.orssuitepdf.core.ExportService;
 import com.orsconsulting.orssuitepdf.core.PdfDocument;
 import com.orsconsulting.orssuitepdf.core.PdfOperations;
 import com.orsconsulting.orssuitepdf.core.RedactionService;
+import com.orsconsulting.orssuitepdf.core.SearchService;
 import com.orsconsulting.orssuitepdf.core.StampService;
 import com.orsconsulting.orssuitepdf.ocr.OcrService;
 import com.orsconsulting.orssuitepdf.signing.PAdESSigner;
@@ -61,6 +62,7 @@ import javafx.scene.image.Image;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.KeyCharacterCombination;
+import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
@@ -100,6 +102,12 @@ public final class MainView {
     private final Label zoomLabel = new Label("100 %");
     private final Label statusLabel = new Label("Listo");
 
+    private HBox searchBar;
+    private TextField searchField;
+    private final Label searchCount = new Label("0/0");
+    private List<SearchService.Match> searchResults = new ArrayList<>();
+    private int searchIndex;
+
     private Button prevButton;
     private Button nextButton;
     private Button saveButton;
@@ -111,7 +119,7 @@ public final class MainView {
         this.stage = stage;
         root.setTop(buildTopBar());
         root.setCenter(buildWorkspace());
-        root.setBottom(buildStatusBar());
+        root.setBottom(new VBox(buildSearchBar(), buildStatusBar()));
 
         documentsPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
             DocumentSession session = newTab == null ? null : sessions.get(newTab);
@@ -214,7 +222,10 @@ public final class MainView {
         ocr.setOnAction(e -> ocrCurrentPage());
         MenuItem redact = new MenuItem("Redactar zona…");
         redact.setOnAction(e -> redactZone());
-        tools.getItems().addAll(ocr, redact);
+        MenuItem find = new MenuItem("Buscar…");
+        find.setAccelerator(new KeyCharacterCombination("F", KeyCombination.SHORTCUT_DOWN));
+        find.setOnAction(e -> toggleSearch());
+        tools.getItems().addAll(ocr, redact, find);
 
         Menu sign = new Menu("Firma");
         MenuItem signItem = new MenuItem("Firmar con certificado…");
@@ -274,6 +285,91 @@ public final class MainView {
         bar.setPadding(new Insets(4, 12, 4, 12));
         bar.setStyle("-fx-background-color: -color-bg-subtle;");
         return bar;
+    }
+
+    // ---------------------------------------------------------- búsqueda
+
+    private HBox buildSearchBar() {
+        searchField = new TextField();
+        searchField.setPromptText("Buscar en el documento…");
+        searchField.setPrefColumnCount(24);
+        searchField.setOnAction(e -> runSearch());
+        searchField.setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.ESCAPE) {
+                toggleSearch();
+            }
+        });
+        Button prev = new Button("◀");
+        prev.setOnAction(e -> navigateSearch(-1));
+        Button next = new Button("▶");
+        next.setOnAction(e -> navigateSearch(1));
+        Button close = new Button("✕");
+        close.setOnAction(e -> toggleSearch());
+
+        searchBar = new HBox(8, new Label("Buscar:"), searchField, prev, next, searchCount, close);
+        searchBar.setAlignment(Pos.CENTER_LEFT);
+        searchBar.setPadding(new Insets(6, 12, 6, 12));
+        searchBar.setStyle("-fx-background-color: -color-bg-subtle;");
+        searchBar.setVisible(false);
+        searchBar.setManaged(false);
+        return searchBar;
+    }
+
+    private void toggleSearch() {
+        boolean show = !searchBar.isVisible();
+        searchBar.setVisible(show);
+        searchBar.setManaged(show);
+        if (show) {
+            searchField.requestFocus();
+            searchField.selectAll();
+        } else {
+            if (pdfView != null) {
+                pdfView.clearSearchMatches();
+            }
+            searchResults = new ArrayList<>();
+            searchCount.setText("0/0");
+        }
+    }
+
+    private void runSearch() {
+        if (!state.hasDocument() || searchField.getText().isBlank()) {
+            return;
+        }
+        PdfDocument document = state.getDocument();
+        PdfView view = pdfView;
+        AppState target = state;
+        String query = searchField.getText();
+        statusLabel.setText("Buscando…");
+        runBackground(() -> {
+            List<SearchService.Match> results = SearchService.find(document, query);
+            Platform.runLater(() -> {
+                searchResults = results;
+                searchIndex = 0;
+                if (view != null) {
+                    view.setSearchMatches(results);
+                }
+                if (results.isEmpty()) {
+                    searchCount.setText("0/0");
+                    statusLabel.setText("Sin coincidencias");
+                } else {
+                    searchCount.setText("1/" + results.size());
+                    target.setCurrentPage(results.get(0).page());
+                    statusLabel.setText(results.size() + " coincidencias");
+                }
+            });
+        }, "No se pudo buscar");
+    }
+
+    private void navigateSearch(int direction) {
+        if (searchResults.isEmpty()) {
+            runSearch();
+            return;
+        }
+        searchIndex = (searchIndex + direction + searchResults.size()) % searchResults.size();
+        searchCount.setText((searchIndex + 1) + "/" + searchResults.size());
+        if (state.hasDocument()) {
+            state.setCurrentPage(searchResults.get(searchIndex).page());
+        }
     }
 
     // ------------------------------------------------ diálogos de archivo
