@@ -15,6 +15,8 @@
         <javafx.version>21.0.2</javafx.version>
         <pdfbox.version>3.0.2</pdfbox.version>
         <atlantafx.version>2.0.1</atlantafx.version>
+        <ikonli.version>12.3.1</ikonli.version>
+        <controlsfx.version>11.2.1</controlsfx.version>
         <tess4j.version>5.11.0</tess4j.version>
         <!-- DSS con backend OpenPDF: la integración PDFBox de DSS aún depende
              de PDFBox 2.x, incompatible con el PDFBox 3 del resto de la app.
@@ -52,6 +54,25 @@
             <groupId>io.github.mkpaz</groupId>
             <artifactId>atlantafx-base</artifactId>
             <version>${atlantafx.version}</version>
+        </dependency>
+        <!-- Iconos vectoriales (pack Feather) para el riel y la barra de
+             herramientas: nítidos, escalables y con color heredado del tema. -->
+        <dependency>
+            <groupId>org.kordamp.ikonli</groupId>
+            <artifactId>ikonli-javafx</artifactId>
+            <version>${ikonli.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.kordamp.ikonli</groupId>
+            <artifactId>ikonli-feather-pack</artifactId>
+            <version>${ikonli.version}</version>
+        </dependency>
+        <!-- Controles adicionales: notificaciones "toast" no modales para el
+             feedback de acciones (guardado, exportado, etc.). -->
+        <dependency>
+            <groupId>org.controlsfx</groupId>
+            <artifactId>controlsfx</artifactId>
+            <version>${controlsfx.version}</version>
         </dependency>
 
         <!-- Operaciones estructurales de PDF y renderizado a imagen:

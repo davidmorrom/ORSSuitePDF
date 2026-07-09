@@ -1,0 +1,240 @@
+/*
+ * ORS Suite PDF — capa de marca sobre AtlantaFX (Primer light/dark).
+ *
+ * Se carga en el subárbol de la ventana principal (root.getStylesheets),
+ * por encima del user-agent stylesheet de AtlantaFX, de modo que redefine
+ * el acento a los azules de ORS y estiliza el riel lateral, la barra de
+ * herramientas contextual, la barra de estado y las barras de scroll.
+ *
+ * Todo se expresa a través de los design tokens de AtlantaFX
+ * (-color-accent-*, -color-fg-*, -color-bg-*, -color-border-*), por lo que
+ * el modo claro y el oscuro funcionan con las mismas reglas.
+ */
+
+/* -------------------------------------------------- acento de marca ORS */
+
+.root {
+    -ors-brand: #1A5EA8;
+    -ors-brand-deep: #1C3C72;
+    -ors-brand-tint: #2b74c4;
+
+    /* Reasigna el acento de AtlantaFX al azul de ORS. */
+    -color-accent-fg: -ors-brand;
+    -color-accent-emphasis: -ors-brand;
+    -color-accent-muted: derive(-ors-brand, 40%);
+    -color-accent-subtle: derive(-ors-brand, 82%);
+}
+
+/* En modo oscuro el acento se aclara para mantener el contraste. */
+.dark {
+    -ors-brand: #4b90d8;
+    -ors-brand-tint: #6aa6e4;
+
+    -color-accent-fg: -ors-brand;
+    -color-accent-emphasis: -ors-brand;
+    -color-accent-muted: derive(-ors-brand, -25%);
+    -color-accent-subtle: derive(-ors-brand, -55%);
+}
+
+/* -------------------------------------------------------- iconos Ikonli */
+
+/* Por defecto los iconos toman el gris de primer plano atenuado. */
+.ikonli-font-icon {
+    -fx-icon-color: -color-fg-muted;
+    -fx-icon-size: 18px;
+}
+
+.button:hover .ikonli-font-icon,
+.toggle-button:hover .ikonli-font-icon,
+.menu-button:hover .ikonli-font-icon {
+    -fx-icon-color: -color-fg-default;
+}
+
+/* Botones de acento (Guardar, Firmar): icono y texto en blanco. */
+.button.accent .ikonli-font-icon {
+    -fx-icon-color: -color-fg-emphasis;
+}
+
+/* --------------------------------------------------------- riel lateral */
+
+.rail {
+    -fx-background-color: -color-bg-subtle;
+    -fx-border-color: -color-border-muted;
+    -fx-border-width: 0 1 0 0;
+    -fx-padding: 8 0 8 0;
+    -fx-spacing: 2;
+    -fx-alignment: TOP_CENTER;
+}
+
+.rail .brand-mark {
+    -fx-padding: 2 0 10 0;
+}
+
+/* Botones de sección del riel: cuadrados, redondeados, sin adorno por
+   defecto; el estado seleccionado usa el acento de marca. */
+.rail-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 8px;
+    -fx-min-width: 46px;
+    -fx-min-height: 46px;
+    -fx-max-width: 46px;
+    -fx-max-height: 46px;
+    -fx-cursor: hand;
+    -fx-content-display: graphic-only;
+}
+
+.rail-button .ikonli-font-icon {
+    -fx-icon-size: 21px;
+}
+
+.rail-button:hover {
+    -fx-background-color: -color-bg-inset;
+}
+
+.rail-button:selected {
+    -fx-background-color: -color-accent-subtle;
+}
+
+.rail-button:selected .ikonli-font-icon {
+    -fx-icon-color: -color-accent-fg;
+}
+
+/* ------------------------------------------------ toolbar contextual */
+
+.context-bar {
+    -fx-background-color: -color-bg-subtle;
+    -fx-border-color: -color-border-muted;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 6 10 6 10;
+    -fx-spacing: 4;
+    -fx-alignment: CENTER_LEFT;
+}
+
+.context-bar .section-title {
+    -fx-text-fill: -color-fg-subtle;
+    -fx-font-size: 10.5px;
+    -fx-font-weight: bold;
+    -fx-padding: 0 8 0 2;
+}
+
+/* Botones de la toolbar: texto + icono, fondo plano que se realza al pasar. */
+.context-bar .button,
+.context-bar .menu-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 6px;
+    -fx-graphic-text-gap: 7px;
+    -fx-padding: 6 11 6 11;
+}
+
+.context-bar .button:hover,
+.context-bar .menu-button:hover {
+    -fx-background-color: -color-bg-inset;
+}
+
+/* --------------------------------------------------------- barra de estado */
+
+.status-bar {
+    -fx-background-color: -color-bg-subtle;
+    -fx-border-color: -color-border-muted;
+    -fx-border-width: 1 0 0 0;
+    -fx-padding: 3 12 3 12;
+    -fx-spacing: 10;
+    -fx-alignment: CENTER_LEFT;
+}
+
+.status-bar .label {
+    -fx-text-fill: -color-fg-muted;
+    -fx-font-size: 12px;
+}
+
+.status-bar .saved-pill {
+    -fx-text-fill: -color-success-fg;
+    -fx-graphic-text-gap: 5px;
+}
+
+.status-bar .saved-pill .ikonli-font-icon {
+    -fx-icon-color: -color-success-fg;
+    -fx-icon-size: 14px;
+}
+
+/* Botones compactos de navegación y zoom en la barra de estado. */
+.status-bar .button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 5px;
+    -fx-padding: 3 7 3 7;
+}
+
+.status-bar .button:hover {
+    -fx-background-color: -color-bg-inset;
+}
+
+.status-bar .zoom-value {
+    -fx-min-width: 92px;
+    -fx-alignment: CENTER;
+}
+
+/* La barra de búsqueda comparte el aspecto de la barra de estado. */
+.search-bar {
+    -fx-background-color: -color-bg-subtle;
+    -fx-border-color: -color-border-muted;
+    -fx-border-width: 1 0 0 0;
+    -fx-padding: 6 12 6 12;
+    -fx-spacing: 8;
+    -fx-alignment: CENTER_LEFT;
+}
+
+/* ----------------------------------------- pestañas de documentos */
+
+.document-tabs .tab-header-area {
+    -fx-padding: 4 6 0 6;
+}
+
+/* ---------------------------- barras de scroll anchas y visibles ----------
+ * Requisito de accesibilidad (baja visión): más anchas y con el pulgar en
+ * color de acento de alto contraste, siempre visible.
+ */
+
+.scroll-bar:vertical {
+    -fx-pref-width: 16px;
+}
+
+.scroll-bar:horizontal {
+    -fx-pref-height: 16px;
+}
+
+.scroll-bar {
+    -fx-background-color: -color-bg-inset;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: derive(-ors-brand, 25%);
+    -fx-background-radius: 8px;
+    -fx-background-insets: 3;
+}
+
+.scroll-bar .thumb:hover {
+    -fx-background-color: -ors-brand;
+}
+
+.scroll-bar .thumb:pressed {
+    -fx-background-color: -ors-brand-deep;
+}
+
+/* Botones de incremento/decremento discretos pero presentes. */
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 4;
+}
+
+.scroll-bar .increment-arrow,
+.scroll-bar .decrement-arrow {
+    -fx-background-color: -color-fg-muted;
+}
+
+/* --------------------------------------------------- pantalla de inicio */
+
+.welcome-title {
+    -fx-font-size: 15px;
+    -fx-text-fill: -color-fg-muted;
+}

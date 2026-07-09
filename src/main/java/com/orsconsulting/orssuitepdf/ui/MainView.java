@@ -34,6 +34,10 @@ import com.orsconsulting.orssuitepdf.signing.VisibleSignature;
 import eu.europa.esig.dss.token.DSSPrivateKeyEntry;
 import eu.europa.esig.dss.token.SignatureTokenConnection;
 
+import org.controlsfx.control.Notifications;
+import org.kordamp.ikonli.feather.Feather;
+import org.kordamp.ikonli.javafx.FontIcon;
+
 import atlantafx.base.theme.PrimerDark;
 import atlantafx.base.theme.PrimerLight;
 import javafx.application.Application;
@@ -47,15 +51,13 @@ import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
-import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
-import javafx.scene.control.Menu;
-import javafx.scene.control.MenuBar;
+import javafx.scene.control.MenuButton;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.Separator;
@@ -66,6 +68,8 @@ import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.ToolBar;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
@@ -79,6 +83,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
@@ -112,7 +117,14 @@ public final class MainView {
     private final Label zoomLabel = new Label("100 %");
     private final Label statusLabel = new Label("Listo");
 
-    private final Menu recentMenu = new Menu("Abrir reciente");
+    private final MenuButton recentButton = new MenuButton("Recientes", FontIcon.of(Feather.CLOCK));
+
+    private Button themeButton;
+
+    /** Barra de herramientas contextual: su contenido cambia con la sección. */
+    private final ToolBar contextBar = new ToolBar();
+    /** Botones de cada sección del riel, creados una vez y reutilizados. */
+    private final Map<String, List<javafx.scene.Node>> sectionItems = new LinkedHashMap<>();
 
     private HBox searchBar;
     private TextField searchField;
@@ -129,9 +141,13 @@ public final class MainView {
 
     public MainView(Stage stage) {
         this.stage = stage;
-        root.setTop(buildTopBar());
+        root.getStylesheets().add(
+                MainView.class.getResource("/css/app.css").toExternalForm());
+        root.setLeft(buildRail());
+        root.setTop(buildContextBar());
         root.setCenter(buildWorkspace());
         root.setBottom(new VBox(buildSearchBar(), buildStatusBar()));
+        registerAccelerators();
 
         documentsPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
             DocumentSession session = newTab == null ? null : sessions.get(newTab);
@@ -204,162 +220,216 @@ public final class MainView {
         }
     }
 
-    private Region buildTopBar() {
-        BorderPane top = new BorderPane();
-        top.setTop(buildMenuBar());
-        top.setCenter(buildToolBar());
-        return top;
+    // -------------------------------------------------- riel + toolbar
+
+    private static FontIcon fi(Feather ikon) {
+        return FontIcon.of(ikon);
     }
 
-    private MenuBar buildMenuBar() {
-        Menu file = new Menu("Archivo");
-        MenuItem open = new MenuItem("Abrir…");
-        open.setAccelerator(new KeyCharacterCombination("O", KeyCombination.SHORTCUT_DOWN));
-        open.setOnAction(e -> openDocument());
-        refreshRecentMenu();
-        MenuItem save = new MenuItem("Guardar");
-        save.setAccelerator(new KeyCharacterCombination("S", KeyCombination.SHORTCUT_DOWN));
-        save.setOnAction(e -> save());
-        MenuItem saveAs = new MenuItem("Guardar como…");
-        saveAs.setOnAction(e -> saveAs());
-        MenuItem merge = new MenuItem("Unir PDF…");
-        merge.setOnAction(e -> mergeDocuments());
-        MenuItem print = new MenuItem("Imprimir…");
-        print.setAccelerator(new KeyCharacterCombination("P", KeyCombination.SHORTCUT_DOWN));
-        print.setOnAction(e -> printDocument());
-        Menu export = buildExportMenu();
-        MenuItem exit = new MenuItem("Salir");
-        exit.setOnAction(e -> {
-            if (confirmCloseAll()) {
-                Platform.exit();
-            }
-        });
-        file.getItems().addAll(open, recentMenu, save, saveAs, new SeparatorMenuItem(),
-                merge, print, export, new SeparatorMenuItem(), exit);
+    /** Riel lateral de secciones (izquierda de la ventana). */
+    private Region buildRail() {
+        ToggleGroup group = new ToggleGroup();
 
-        Menu page = new Menu("Página");
-        MenuItem rotL = new MenuItem("Rotar a la izquierda");
-        rotL.setOnAction(e -> rotateCurrent(-90));
-        MenuItem rotR = new MenuItem("Rotar a la derecha");
-        rotR.setOnAction(e -> rotateCurrent(90));
-        MenuItem moveBack = new MenuItem("Mover hacia atrás");
-        moveBack.setOnAction(e -> moveCurrent(-1));
-        MenuItem moveFwd = new MenuItem("Mover hacia delante");
-        moveFwd.setOnAction(e -> moveCurrent(1));
-        MenuItem delete = new MenuItem("Eliminar página actual");
-        delete.setOnAction(e -> deleteCurrent());
-        MenuItem extract = new MenuItem("Extraer rango…");
-        extract.setOnAction(e -> extractRange());
-        page.getItems().addAll(rotL, rotR, new SeparatorMenuItem(),
-                moveBack, moveFwd, new SeparatorMenuItem(),
-                delete, new SeparatorMenuItem(), extract);
+        javafx.scene.image.ImageView brand = new javafx.scene.image.ImageView(Branding.symbol());
+        brand.setFitWidth(30);
+        brand.setFitHeight(30);
+        brand.setPreserveRatio(true);
+        StackPane brandMark = new StackPane(brand);
+        brandMark.getStyleClass().add("brand-mark");
 
-        Menu insert = new Menu("Insertar");
-        MenuItem stamp = new MenuItem("Imagen o sello…");
-        stamp.setOnAction(e -> insertImage());
-        MenuItem textItem = new MenuItem("Texto…");
-        textItem.setOnAction(e -> insertText());
-        MenuItem watermark = new MenuItem("Marca de agua…");
-        watermark.setOnAction(e -> addWatermark());
-        MenuItem numbering = new MenuItem("Numerar páginas");
-        numbering.setOnAction(e -> numberPages());
-        insert.getItems().addAll(stamp, textItem, new SeparatorMenuItem(), watermark, numbering);
+        ToggleButton doc = railButton(Feather.FILE_TEXT, "Documento", group, "doc");
+        doc.setSelected(true);
+        ToggleButton pages = railButton(Feather.LAYERS, "Páginas", group, "pages");
+        ToggleButton insert = railButton(Feather.PLUS_SQUARE, "Insertar", group, "insert");
+        ToggleButton annot = railButton(Feather.EDIT_2, "Anotar", group, "annot");
+        ToggleButton tools = railButton(Feather.TOOL, "Herramientas", group, "tools");
+        ToggleButton sign = railButton(Feather.FEATHER, "Firma", group, "sign");
 
-        Menu annotate = new Menu("Anotar");
-        MenuItem hl = new MenuItem("Resaltar zona");
-        hl.setOnAction(e -> annotate("Resaltado añadido",
-                (d, r) -> AnnotationService.highlight(d, r.page(), r.x(), r.y(), r.width(), r.height())));
-        MenuItem rect = new MenuItem("Recuadro");
-        rect.setOnAction(e -> annotate("Recuadro añadido",
-                (d, r) -> AnnotationService.rectangle(d, r.page(), r.x(), r.y(), r.width(), r.height())));
-        MenuItem note = new MenuItem("Nota…");
-        note.setOnAction(e -> annotateNote());
-        MenuItem ink = new MenuItem("Dibujo libre");
-        ink.setOnAction(e -> annotateFreehand());
-        MenuItem arrow = new MenuItem("Flecha");
-        arrow.setOnAction(e -> annotateArrow());
-        annotate.getItems().addAll(hl, rect, note, new SeparatorMenuItem(), ink, arrow);
+        Region grow = new Region();
+        VBox.setVgrow(grow, Priority.ALWAYS);
 
-        Menu tools = new Menu("Herramientas");
-        MenuItem ocr = new MenuItem("OCR de la página actual");
-        ocr.setOnAction(e -> ocrCurrentPage());
-        MenuItem redact = new MenuItem("Redactar zona…");
-        redact.setOnAction(e -> redactZone());
-        MenuItem find = new MenuItem("Buscar…");
-        find.setAccelerator(new KeyCharacterCombination("F", KeyCombination.SHORTCUT_DOWN));
-        find.setOnAction(e -> toggleSearch());
-        MenuItem protect = new MenuItem("Proteger con contraseña…");
-        protect.setOnAction(e -> protectDocument());
-        MenuItem unprotect = new MenuItem("Quitar protección");
-        unprotect.setOnAction(e -> unprotectDocument());
-        tools.getItems().addAll(ocr, redact, find, new SeparatorMenuItem(), protect, unprotect);
+        boolean dark = prefs.getBoolean(PREF_DARK, false);
+        themeButton = new Button(null, fi(dark ? Feather.SUN : Feather.MOON));
+        themeButton.getStyleClass().add("rail-button");
+        themeButton.setTooltip(new Tooltip("Alternar modo claro / oscuro"));
+        themeButton.setOnAction(e -> applyTheme(!prefs.getBoolean(PREF_DARK, false)));
 
-        Menu sign = new Menu("Firma");
-        MenuItem signItem = new MenuItem("Firmar con certificado…");
-        signItem.setOnAction(e -> signDocument());
-        MenuItem validateItem = new MenuItem("Validar firmas…");
-        validateItem.setOnAction(e -> validateSignatures());
-        sign.getItems().addAll(signItem, validateItem);
-
-        Menu view = new Menu("Ver");
-        CheckMenuItem darkMode = new CheckMenuItem("Modo oscuro");
-        darkMode.setSelected(prefs.getBoolean(PREF_DARK, false));
-        darkMode.setOnAction(e -> applyTheme(darkMode.isSelected()));
-        view.getItems().add(darkMode);
-
-        Menu help = new Menu("Ayuda");
-        MenuItem about = new MenuItem("Acerca de ORS Suite PDF");
+        Button about = new Button(null, fi(Feather.INFO));
+        about.getStyleClass().add("rail-button");
+        about.setTooltip(new Tooltip("Acerca de ORS Suite PDF"));
         about.setOnAction(e -> showAbout());
-        help.getItems().add(about);
 
-        return new MenuBar(file, page, insert, annotate, tools, sign, view, help);
+        VBox rail = new VBox(brandMark, doc, pages, insert, annot, tools, sign,
+                grow, themeButton, about);
+        rail.getStyleClass().add("rail");
+        return rail;
     }
 
-    private ToolBar buildToolBar() {
-        Button open = new Button("Abrir");
-        open.setOnAction(e -> openDocument());
-
-        saveButton = new Button("Guardar");
-        saveButton.setOnAction(e -> save());
-
-        prevButton = iconButton("◀", "Página anterior", () -> goToPage(state.getCurrentPage() - 1));
-        nextButton = iconButton("▶", "Página siguiente", () -> goToPage(state.getCurrentPage() + 1));
-
-        rotateLeftButton = iconButton("↺", "Rotar a la izquierda", () -> rotateCurrent(-90));
-        rotateRightButton = iconButton("↻", "Rotar a la derecha", () -> rotateCurrent(90));
-        deleteButton = iconButton("🗑", "Eliminar página actual", this::deleteCurrent);
-
-        Button zoomOut = iconButton("−", "Reducir", () -> state.setZoom(state.getZoom() - 0.25));
-        Button zoomReset = iconButton("100 %", "Zoom natural", () -> state.setZoom(1.0));
-        Button zoomIn = iconButton("+", "Ampliar", () -> state.setZoom(state.getZoom() + 0.25));
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        return new ToolBar(
-                open, saveButton,
-                new Separator(),
-                prevButton, pageLabel, nextButton,
-                new Separator(),
-                rotateLeftButton, rotateRightButton, deleteButton,
-                new Separator(),
-                zoomOut, zoomReset, zoomIn, zoomLabel,
-                spacer);
+    private ToggleButton railButton(Feather ikon, String tip, ToggleGroup group, String section) {
+        ToggleButton button = new ToggleButton(null, fi(ikon));
+        button.getStyleClass().add("rail-button");
+        button.setToggleGroup(group);
+        button.setTooltip(new Tooltip(tip));
+        button.setOnAction(e -> {
+            if (!button.isSelected()) {
+                // Impide que un clic en la sección activa deje el riel sin selección.
+                button.setSelected(true);
+                return;
+            }
+            showSection(section);
+        });
+        return button;
     }
 
-    private Button iconButton(String text, String tip, Runnable action) {
-        Button button = new Button(text);
+    /** Construye la toolbar contextual y muestra la sección "Documento". */
+    private ToolBar buildContextBar() {
+        contextBar.getStyleClass().add("context-bar");
+        buildSections();
+        showSection("doc");
+        return contextBar;
+    }
+
+    private void showSection(String key) {
+        List<javafx.scene.Node> items = sectionItems.get(key);
+        if (items != null) {
+            contextBar.getItems().setAll(items);
+        }
+    }
+
+    /** Crea, una sola vez, los botones de cada sección de la toolbar. */
+    private void buildSections() {
+        // --- Documento ---
+        Button open = tbButton("Abrir", Feather.FOLDER, "Abrir PDF (Ctrl+O)", this::openDocument);
+        saveButton = tbButton("Guardar", Feather.SAVE, "Guardar (Ctrl+S)", this::save);
+        saveButton.getStyleClass().add("accent");
+        Button saveAs = tbButton("Guardar como", Feather.COPY, "Guardar con otro nombre", this::saveAs);
+        recentButton.setDisable(true);
+        refreshRecentMenu();
+        Button merge = tbButton("Unir", Feather.LAYERS, "Unir varios PDF en uno", this::mergeDocuments);
+        Button print = tbButton("Imprimir", Feather.PRINTER, "Imprimir (Ctrl+P)", this::printDocument);
+        MenuButton export = buildExportMenuButton();
+        sectionItems.put("doc", List.of(sectionTitle("Documento"),
+                open, recentButton, saveButton, saveAs, sep(), merge, print, export));
+
+        // --- Páginas ---
+        rotateLeftButton = tbButton("Rotar izq.", Feather.ROTATE_CCW, "Rotar a la izquierda", () -> rotateCurrent(-90));
+        rotateRightButton = tbButton("Rotar der.", Feather.ROTATE_CW, "Rotar a la derecha", () -> rotateCurrent(90));
+        Button moveBack = tbButton("Atrás", Feather.ARROW_UP, "Mover la página hacia atrás", () -> moveCurrent(-1));
+        Button moveFwd = tbButton("Adelante", Feather.ARROW_DOWN, "Mover la página hacia delante", () -> moveCurrent(1));
+        deleteButton = tbButton("Eliminar", Feather.TRASH_2, "Eliminar la página actual", this::deleteCurrent);
+        Button extract = tbButton("Extraer rango", Feather.SCISSORS, "Extraer un rango de páginas", this::extractRange);
+        sectionItems.put("pages", List.of(sectionTitle("Páginas"),
+                rotateLeftButton, rotateRightButton, sep(), moveBack, moveFwd, sep(), deleteButton, extract));
+
+        // --- Insertar ---
+        Button image = tbButton("Imagen / sello", Feather.IMAGE, "Insertar una imagen o sello", this::insertImage);
+        Button text = tbButton("Texto", Feather.TYPE, "Insertar texto", this::insertText);
+        Button watermark = tbButton("Marca de agua", Feather.DROPLET, "Añadir marca de agua a todas las páginas", this::addWatermark);
+        Button numbering = tbButton("Numerar páginas", Feather.HASH, "Numerar las páginas", this::numberPages);
+        sectionItems.put("insert", List.of(sectionTitle("Insertar"),
+                image, text, sep(), watermark, numbering));
+
+        // --- Anotar ---
+        Button highlight = tbButton("Resaltar", Feather.EDIT_3, "Resaltar una zona", () -> annotate("Resaltado añadido",
+                (d, r) -> AnnotationService.highlight(d, r.page(), r.x(), r.y(), r.width(), r.height())));
+        Button rectangle = tbButton("Recuadro", Feather.SQUARE, "Dibujar un recuadro", () -> annotate("Recuadro añadido",
+                (d, r) -> AnnotationService.rectangle(d, r.page(), r.x(), r.y(), r.width(), r.height())));
+        Button note = tbButton("Nota", Feather.MESSAGE_SQUARE, "Añadir una nota", this::annotateNote);
+        Button ink = tbButton("Dibujo libre", Feather.EDIT_2, "Dibujar a mano alzada", this::annotateFreehand);
+        Button arrow = tbButton("Flecha", Feather.ARROW_RIGHT, "Dibujar una flecha", this::annotateArrow);
+        sectionItems.put("annot", List.of(sectionTitle("Anotar"),
+                highlight, rectangle, note, sep(), ink, arrow));
+
+        // --- Herramientas ---
+        Button ocr = tbButton("OCR página", Feather.ALIGN_LEFT, "Reconocer texto (OCR) de la página actual", this::ocrCurrentPage);
+        Button redact = tbButton("Redactar", Feather.EYE_OFF, "Redactar (ocultar de forma segura) una zona", this::redactZone);
+        Button find = tbButton("Buscar", Feather.SEARCH, "Buscar en el documento (Ctrl+F)", this::toggleSearch);
+        Button protect = tbButton("Proteger", Feather.LOCK, "Proteger con contraseña", this::protectDocument);
+        Button unprotect = tbButton("Quitar protección", Feather.UNLOCK, "Quitar la protección con contraseña", this::unprotectDocument);
+        sectionItems.put("tools", List.of(sectionTitle("Herramientas"),
+                ocr, redact, find, sep(), protect, unprotect));
+
+        // --- Firma ---
+        Button signButton = tbButton("Firmar con certificado", Feather.FEATHER, "Firmar con un certificado digital", this::signDocument);
+        signButton.getStyleClass().add("accent");
+        Button validate = tbButton("Validar firmas", Feather.CHECK_CIRCLE, "Validar las firmas del documento", this::validateSignatures);
+        sectionItems.put("sign", List.of(sectionTitle("Firma"), signButton, validate));
+    }
+
+    private Button tbButton(String text, Feather ikon, String tip, Runnable action) {
+        Button button = new Button(text, fi(ikon));
         button.setTooltip(new Tooltip(tip));
         button.setOnAction(e -> action.run());
         return button;
     }
 
+    private Label sectionTitle(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("section-title");
+        return label;
+    }
+
+    private Separator sep() {
+        return new Separator(javafx.geometry.Orientation.VERTICAL);
+    }
+
+    /** Registra los aceleradores de teclado una vez la escena está disponible. */
+    private void registerAccelerators() {
+        root.sceneProperty().addListener((obs, oldScene, scene) -> {
+            if (scene == null) {
+                return;
+            }
+            var accelerators = scene.getAccelerators();
+            accelerators.put(new KeyCharacterCombination("O", KeyCombination.SHORTCUT_DOWN), this::openDocument);
+            accelerators.put(new KeyCharacterCombination("S", KeyCombination.SHORTCUT_DOWN), this::save);
+            accelerators.put(new KeyCharacterCombination("P", KeyCombination.SHORTCUT_DOWN), this::printDocument);
+            accelerators.put(new KeyCharacterCombination("F", KeyCombination.SHORTCUT_DOWN), this::toggleSearch);
+        });
+    }
+
+    // ------------------------------------------------------ barra de estado
+
     private Region buildStatusBar() {
-        HBox bar = new HBox(statusLabel);
-        bar.setAlignment(Pos.CENTER_LEFT);
-        bar.setPadding(new Insets(4, 12, 4, 12));
-        bar.setStyle("-fx-background-color: -color-bg-subtle;");
+        HBox bar = new HBox();
+        bar.getStyleClass().add("status-bar");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        prevButton = statusIconButton(Feather.CHEVRON_LEFT, "Página anterior",
+                () -> goToPage(state.getCurrentPage() - 1));
+        nextButton = statusIconButton(Feather.CHEVRON_RIGHT, "Página siguiente",
+                () -> goToPage(state.getCurrentPage() + 1));
+        pageLabel.getStyleClass().add("page-value");
+
+        Button zoomOut = statusIconButton(Feather.MINUS, "Reducir",
+                () -> state.setZoom(state.getZoom() - 0.25));
+        Button zoomReset = statusIconButton(Feather.MAXIMIZE, "Zoom natural (100 %)",
+                () -> state.setZoom(1.0));
+        Button zoomIn = statusIconButton(Feather.PLUS, "Ampliar",
+                () -> state.setZoom(state.getZoom() + 0.25));
+        zoomLabel.getStyleClass().add("zoom-value");
+
+        bar.getChildren().addAll(statusLabel, spacer,
+                prevButton, pageLabel, nextButton, sep(),
+                zoomOut, zoomLabel, zoomIn, zoomReset);
         return bar;
+    }
+
+    private Button statusIconButton(Feather ikon, String tip, Runnable action) {
+        Button button = new Button(null, fi(ikon));
+        button.setTooltip(new Tooltip(tip));
+        button.setOnAction(e -> action.run());
+        return button;
+    }
+
+    /** Notificación "toast" no modal en la esquina, para confirmar acciones. */
+    private void toast(String title, String message) {
+        Notifications.create()
+                .title(title)
+                .text(message)
+                .owner(stage)
+                .showInformation();
     }
 
     // ---------------------------------------------------------- búsqueda
@@ -457,7 +527,16 @@ public final class MainView {
         Application.setUserAgentStylesheet(dark
                 ? new PrimerDark().getUserAgentStylesheet()
                 : new PrimerLight().getUserAgentStylesheet());
+        // El acento de marca en oscuro se define en app.css bajo la clase ".dark",
+        // que AtlantaFX no añade por sí solo: la conmutamos aquí.
+        root.getStyleClass().remove("dark");
+        if (dark) {
+            root.getStyleClass().add("dark");
+        }
         prefs.putBoolean(PREF_DARK, dark);
+        if (themeButton != null) {
+            themeButton.setGraphic(fi(dark ? Feather.SUN : Feather.MOON));
+        }
         refreshWelcome();
     }
 
@@ -503,9 +582,9 @@ public final class MainView {
     }
 
     private void refreshRecentMenu() {
-        recentMenu.getItems().clear();
+        recentButton.getItems().clear();
         List<String> list = recentFiles();
-        recentMenu.setDisable(list.isEmpty());
+        recentButton.setDisable(list.isEmpty());
         for (String pathString : list) {
             Path path = Path.of(pathString);
             MenuItem item = new MenuItem(path.getFileName().toString());
@@ -516,7 +595,7 @@ public final class MainView {
                     showError("Abrir reciente", "El archivo ya no existe:\n" + pathString);
                 }
             });
-            recentMenu.getItems().add(item);
+            recentButton.getItems().add(item);
         }
         if (!list.isEmpty()) {
             MenuItem clear = new MenuItem("Vaciar lista");
@@ -524,7 +603,7 @@ public final class MainView {
                 prefs.remove(PREF_RECENT);
                 refreshRecentMenu();
             });
-            recentMenu.getItems().addAll(new SeparatorMenuItem(), clear);
+            recentButton.getItems().addAll(new SeparatorMenuItem(), clear);
         }
     }
 
@@ -728,6 +807,7 @@ public final class MainView {
                 state.setCurrentPage(Math.min(pageToRestore, last));
                 state.setDirty(false);
                 statusLabel.setText("Guardado: " + target.getFileName());
+                toast("Documento guardado", target.getFileName().toString());
             });
         }, "No se pudo guardar el documento");
     }
@@ -1028,8 +1108,8 @@ public final class MainView {
 
     // ------------------------------------------------------- exportación
 
-    private Menu buildExportMenu() {
-        Menu export = new Menu("Exportar");
+    private MenuButton buildExportMenuButton() {
+        MenuButton export = new MenuButton("Exportar", fi(Feather.UPLOAD));
         MenuItem txt = new MenuItem("Texto (.txt)…");
         txt.setOnAction(e -> exportAsText());
         MenuItem img = new MenuItem("Imágenes (PNG)…");
