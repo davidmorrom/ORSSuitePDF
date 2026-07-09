@@ -1303,11 +1303,13 @@ public final class MainView {
         private final Tab tab = new Tab();
 
         DocumentSession() {
+            Tab pages = new Tab("Páginas", new ThumbnailPanel(state));
+            pages.setClosable(false);
             Tab bookmarks = new Tab("Marcadores", new BookmarkPanel(state));
             bookmarks.setClosable(false);
             Tab form = new Tab("Formulario", new FormPanel(state));
             form.setClosable(false);
-            TabPane sidebar = new TabPane(bookmarks, form);
+            TabPane sidebar = new TabPane(pages, bookmarks, form);
             sidebar.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
 
             SplitPane split = new SplitPane(sidebar, pdfView);
