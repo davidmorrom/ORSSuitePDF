@@ -87,7 +87,8 @@ Ver las decisiones de arquitectura documentadas en `docs/adr/`.
 ## Roadmap
 1. ✅ MVP: visor PDF (navegación + zoom), unir/extraer, rotar/mover/eliminar
    páginas y editor de marcadores (PDFBox + JavaFX)
-2. ⬜ Formularios (AcroForms) + firma visual
+2. ✅ Formularios (AcroForms): leer/rellenar/aplanar campos + inserción de
+   imagen/sello visual sobre la página
 3. ⬜ OCR + edición de texto básica (Tess4J + PDFBox)
 4. ⬜ Firma PAdES con fallback offline (DSS)
 5. ⬜ Empaquetado a instalador (.exe/.dmg/.deb) con jpackage
