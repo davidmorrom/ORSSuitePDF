@@ -3,6 +3,8 @@ CLAUDE.md
 
 # Build / Maven
 target/
+# Generado por maven-shade-plugin al empaquetar
+dependency-reduced-pom.xml
 
 # IDE
 .idea/
