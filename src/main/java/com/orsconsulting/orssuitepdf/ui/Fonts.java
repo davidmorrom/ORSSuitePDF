@@ -3,23 +3,24 @@ package com.orsconsulting.orssuitepdf.ui;
 import javafx.scene.text.Font;
 
 /**
- * Registra las familias tipográficas de la interfaz (IBM Plex Sans para el
+ * Registra las familias tipográficas de la interfaz (Instrument Sans para el
  * texto de UI e IBM Plex Mono para valores técnicos: nº de página, zoom,
- * coordenadas). Los TTF viajan en el classpath ({@code /fonts}) para que la
- * aplicación funcione sin conexión y sin depender de fuentes del sistema.
+ * atajos de teclado). Los TTF viajan en el classpath ({@code /fonts}) para
+ * que la aplicación funcione sin conexión y sin depender de fuentes del
+ * sistema.
  */
 public final class Fonts {
 
     /** Familia de la interfaz. */
-    public static final String SANS = "IBM Plex Sans";
+    public static final String SANS = "Instrument Sans";
     /** Familia monoespaciada para valores técnicos. */
     public static final String MONO = "IBM Plex Mono";
 
     private static final String[] FILES = {
-            "IBMPlexSans-Regular.ttf",
-            "IBMPlexSans-Medium.ttf",
-            "IBMPlexSans-SemiBold.ttf",
-            "IBMPlexSans-Bold.ttf",
+            "InstrumentSans-Regular.ttf",
+            "InstrumentSans-Medium.ttf",
+            "InstrumentSans-SemiBold.ttf",
+            "InstrumentSans-Bold.ttf",
             "IBMPlexMono-Regular.ttf",
             "IBMPlexMono-Medium.ttf",
             "IBMPlexMono-SemiBold.ttf",
