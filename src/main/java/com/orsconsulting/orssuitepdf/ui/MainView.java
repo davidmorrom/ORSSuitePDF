@@ -178,9 +178,28 @@ public final class MainView {
 
     // ---------------------------------------------------------------- barras
 
+    private final javafx.scene.layout.StackPane workspace = new javafx.scene.layout.StackPane();
+
     private Region buildWorkspace() {
         documentsPane.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
-        return documentsPane;
+        workspace.getChildren().add(documentsPane);
+        documentsPane.getTabs().addListener(
+                (javafx.collections.ListChangeListener<Tab>) c -> refreshWelcome());
+        refreshWelcome();
+        return workspace;
+    }
+
+    /** Muestra la pantalla de inicio cuando no hay documentos abiertos. */
+    private void refreshWelcome() {
+        workspace.getChildren().removeIf(node -> node instanceof WelcomePane);
+        boolean empty = documentsPane.getTabs().isEmpty();
+        documentsPane.setVisible(!empty);
+        if (empty) {
+            List<Path> recent = recentFiles().stream().map(Path::of).toList();
+            WelcomePane welcome = new WelcomePane(this::openDocument, this::mergeDocuments,
+                    recent, this::loadInBackground);
+            workspace.getChildren().add(welcome);
+        }
     }
 
     private Region buildTopBar() {
