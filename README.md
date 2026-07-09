@@ -123,6 +123,17 @@ Ver las decisiones de arquitectura documentadas en `docs/adr/`.
    online/offline: PAdES-B-T con sello de tiempo o PAdES-B sin conexión
 5. ✅ Empaquetado a instalador Windows (.exe) con jpackage + WiX
 
-La firma necesita un certificado PKCS#12 (.p12/.pfx); su contraseña se pide
-en el momento de firmar y no se almacena. Ningún certificado ni clave se
-versiona (ver .gitignore).
+### Extras
+- ✅ Visor con **desplazamiento vertical continuo**.
+- ✅ **Gestor de pestañas**: varios PDF abiertos a la vez, uno por pestaña.
+- ✅ **Firma con el almacén de Windows** (certificados instalados y **DNIe**);
+   el PIN lo solicita el sistema. Opción de **firma visible** dibujando el
+   recuadro sobre la página.
+- ✅ **Unir** con pantalla de revisión (ordenar/quitar/añadir documentos).
+- ✅ **Impresión** con diálogo nativo (impresoras y Microsoft Print to PDF).
+- ✅ **Exportar** a texto e imágenes (nativo) y a DOCX/PPTX/ODT/RTF vía
+   LibreOffice si está instalado (ver ADR-004).
+
+La firma usa el almacén de certificados de Windows (incluido el DNIe al
+insertar la tarjeta). Ningún certificado ni clave se versiona (ver
+`.gitignore`).
