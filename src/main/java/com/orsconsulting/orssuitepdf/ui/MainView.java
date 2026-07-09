@@ -26,6 +26,8 @@ import javafx.scene.control.Separator;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.SplitPane;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.ToolBar;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.KeyCharacterCombination;
@@ -53,6 +55,7 @@ public final class MainView {
     private final AppState state = new AppState();
     private final PdfView pdfView = new PdfView(state);
     private final BookmarkPanel bookmarkPanel = new BookmarkPanel(state);
+    private final FormPanel formPanel = new FormPanel(state);
     private final BorderPane root = new BorderPane();
 
     private final Label pageLabel = new Label("—");
@@ -95,9 +98,16 @@ public final class MainView {
     // ---------------------------------------------------------------- barras
 
     private Region buildWorkspace() {
-        SplitPane split = new SplitPane(bookmarkPanel, pdfView);
-        split.setDividerPositions(0.22);
-        SplitPane.setResizableWithParent(bookmarkPanel, Boolean.FALSE);
+        Tab bookmarksTab = new Tab("Marcadores", bookmarkPanel);
+        bookmarksTab.setClosable(false);
+        Tab formTab = new Tab("Formulario", formPanel);
+        formTab.setClosable(false);
+        TabPane sidebar = new TabPane(bookmarksTab, formTab);
+        sidebar.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+
+        SplitPane split = new SplitPane(sidebar, pdfView);
+        split.setDividerPositions(0.24);
+        SplitPane.setResizableWithParent(sidebar, Boolean.FALSE);
         return split;
     }
 
