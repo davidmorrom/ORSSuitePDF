@@ -62,6 +62,16 @@ public final class PdfDocument implements Closeable {
         return document;
     }
 
+    /** Anchura de la página (cropBox) en puntos. */
+    public float pageWidth(int pageIndex) {
+        return document.getPage(pageIndex).getCropBox().getWidth();
+    }
+
+    /** Altura de la página (cropBox) en puntos. */
+    public float pageHeight(int pageIndex) {
+        return document.getPage(pageIndex).getCropBox().getHeight();
+    }
+
     /**
      * Renderiza una página a una imagen de JavaFX.
      *

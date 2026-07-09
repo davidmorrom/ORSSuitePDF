@@ -9,6 +9,7 @@ import java.util.Optional;
 
 import com.orsconsulting.orssuitepdf.core.PdfDocument;
 import com.orsconsulting.orssuitepdf.core.PdfOperations;
+import com.orsconsulting.orssuitepdf.core.StampService;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -17,6 +18,7 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
@@ -30,6 +32,7 @@ import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.ToolBar;
 import javafx.scene.control.Tooltip;
+import javafx.scene.image.Image;
 import javafx.scene.input.KeyCharacterCombination;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.BorderPane;
@@ -156,12 +159,17 @@ public final class MainView {
                 moveBack, moveFwd, new SeparatorMenuItem(),
                 delete, new SeparatorMenuItem(), extract);
 
+        Menu insert = new Menu("Insertar");
+        MenuItem stamp = new MenuItem("Imagen o sello…");
+        stamp.setOnAction(e -> insertImage());
+        insert.getItems().add(stamp);
+
         Menu help = new Menu("Ayuda");
         MenuItem about = new MenuItem("Acerca de ORS Suite PDF");
         about.setOnAction(e -> showAbout());
         help.getItems().add(about);
 
-        return new MenuBar(file, page, help);
+        return new MenuBar(file, page, insert, help);
     }
 
     private ToolBar buildToolBar() {
@@ -358,6 +366,57 @@ public final class MainView {
         }, "No se pudo extraer el rango");
     }
 
+    private void insertImage() {
+        if (!state.hasDocument()) {
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Seleccionar imagen o sello");
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Imágenes", "*.png", "*.jpg", "*.jpeg"));
+        File imageFile = chooser.showOpenDialog(stage);
+        if (imageFile == null) {
+            return;
+        }
+        Image preview = new Image(imageFile.toURI().toString());
+        if (preview.isError() || preview.getWidth() <= 0) {
+            showError("Insertar imagen", "No se pudo leer la imagen seleccionada.");
+            return;
+        }
+        double aspect = preview.getHeight() / preview.getWidth();
+
+        Optional<Placement> placement = askPlacement();
+        if (placement.isEmpty()) {
+            return;
+        }
+
+        int page = state.getCurrentPage();
+        PdfDocument document = state.getDocument();
+        float pageW = document.pageWidth(page);
+        float pageH = document.pageHeight(page);
+        float margin = 36f; // 0,5 pulgadas
+        float width = (float) placement.get().width();
+        float height = (float) (width * aspect);
+
+        float x;
+        float y;
+        switch (placement.get().corner()) {
+            case "Inferior izquierda" -> { x = margin; y = margin; }
+            case "Superior izquierda" -> { x = margin; y = pageH - margin - height; }
+            case "Superior derecha" -> { x = pageW - margin - width; y = pageH - margin - height; }
+            case "Centro" -> { x = (pageW - width) / 2; y = (pageH - height) / 2; }
+            default -> { x = pageW - margin - width; y = margin; } // Inferior derecha
+        }
+
+        try {
+            StampService.stampImage(document.pdbox(), page, imageFile.toPath(), x, y, width, height);
+            state.markMutated();
+            statusLabel.setText("Imagen insertada en la página " + (page + 1));
+        } catch (Exception ex) {
+            showError("No se pudo insertar la imagen", ex.getMessage());
+        }
+    }
+
     // ------------------------------------------------- operaciones de página
 
     private void rotateCurrent(int degrees) {
@@ -475,6 +534,37 @@ public final class MainView {
         return dialog.showAndWait();
     }
 
+    private Optional<Placement> askPlacement() {
+        Dialog<Placement> dialog = new Dialog<>();
+        dialog.setTitle("Insertar imagen");
+        dialog.setHeaderText("Posición y tamaño del sello en la página actual");
+        dialog.initOwner(stage);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        ComboBox<String> corner = new ComboBox<>();
+        corner.getItems().addAll("Inferior derecha", "Inferior izquierda",
+                "Superior derecha", "Superior izquierda", "Centro");
+        corner.setValue("Inferior derecha");
+        corner.setMaxWidth(Double.MAX_VALUE);
+
+        Spinner<Integer> width = new Spinner<>(30, 600, 150, 10);
+        width.setEditable(true);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(16));
+        grid.add(new Label("Posición:"), 0, 0);
+        grid.add(corner, 1, 0);
+        grid.add(new Label("Anchura (pt):"), 0, 1);
+        grid.add(width, 1, 1);
+        dialog.getDialogPane().setContent(grid);
+
+        dialog.setResultConverter(button ->
+                button == ButtonType.OK ? new Placement(corner.getValue(), width.getValue()) : null);
+        return dialog.showAndWait();
+    }
+
     private boolean confirmDiscardChanges() {
         if (!state.isDirty()) {
             return true;
@@ -537,5 +627,9 @@ public final class MainView {
     @FunctionalInterface
     private interface BackgroundTask {
         void run() throws Exception;
+    }
+
+    /** Resultado del diálogo de inserción de imagen: esquina y anchura (pt). */
+    private record Placement(String corner, double width) {
     }
 }
