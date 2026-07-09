@@ -27,6 +27,10 @@ Thumbs.db
 # Datos de idioma de Tesseract (binarios): se descargan aparte, ver README
 /tessdata/
 
+# Material de referencia local (capturas de ejemplo, notas)
+/Ejemplos/
+/ejemplos/
+
 # Artefactos de empaquetado local (instaladores generados)
 build/*.exe
 build/*.msi
