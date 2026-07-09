@@ -32,6 +32,9 @@ import com.orsconsulting.orssuitepdf.signing.VisibleSignature;
 import eu.europa.esig.dss.token.DSSPrivateKeyEntry;
 import eu.europa.esig.dss.token.SignatureTokenConnection;
 
+import atlantafx.base.theme.PrimerDark;
+import atlantafx.base.theme.PrimerLight;
+import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -42,6 +45,7 @@ import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
@@ -163,6 +167,7 @@ public final class MainView {
             event.consume();
         });
 
+        applyTheme(prefs.getBoolean(PREF_DARK, false));
         refreshControls();
         updateTitle();
     }
@@ -271,12 +276,18 @@ public final class MainView {
         validateItem.setOnAction(e -> validateSignatures());
         sign.getItems().addAll(signItem, validateItem);
 
+        Menu view = new Menu("Ver");
+        CheckMenuItem darkMode = new CheckMenuItem("Modo oscuro");
+        darkMode.setSelected(prefs.getBoolean(PREF_DARK, false));
+        darkMode.setOnAction(e -> applyTheme(darkMode.isSelected()));
+        view.getItems().add(darkMode);
+
         Menu help = new Menu("Ayuda");
         MenuItem about = new MenuItem("Acerca de ORS Suite PDF");
         about.setOnAction(e -> showAbout());
         help.getItems().add(about);
 
-        return new MenuBar(file, page, insert, annotate, tools, sign, help);
+        return new MenuBar(file, page, insert, annotate, tools, sign, view, help);
     }
 
     private ToolBar buildToolBar() {
@@ -414,7 +425,15 @@ public final class MainView {
     // ------------------------------------------------ diálogos de archivo
 
     private static final String PREF_LAST_DIR = "lastDirectory";
+    private static final String PREF_DARK = "darkMode";
     private final Preferences prefs = Preferences.userNodeForPackage(MainView.class);
+
+    private void applyTheme(boolean dark) {
+        Application.setUserAgentStylesheet(dark
+                ? new PrimerDark().getUserAgentStylesheet()
+                : new PrimerLight().getUserAgentStylesheet());
+        prefs.putBoolean(PREF_DARK, dark);
+    }
 
     private File lastDirectory() {
         String path = prefs.get(PREF_LAST_DIR, null);
