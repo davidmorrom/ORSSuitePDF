@@ -516,7 +516,7 @@ public final class MainView {
 
     private File showOpen(FileChooser chooser) {
         applyLastDirectory(chooser);
-        File file = showOpen(chooser);
+        File file = chooser.showOpenDialog(stage);
         if (file != null) {
             rememberDirectory(file.getParentFile());
         }
@@ -525,7 +525,7 @@ public final class MainView {
 
     private List<File> showOpenMultiple(FileChooser chooser) {
         applyLastDirectory(chooser);
-        List<File> files = showOpenMultiple(chooser);
+        List<File> files = chooser.showOpenMultipleDialog(stage);
         if (files != null && !files.isEmpty()) {
             rememberDirectory(files.get(0).getParentFile());
         }
@@ -534,7 +534,7 @@ public final class MainView {
 
     private File showSave(FileChooser chooser) {
         applyLastDirectory(chooser);
-        File file = showSave(chooser);
+        File file = chooser.showSaveDialog(stage);
         if (file != null) {
             rememberDirectory(file.getParentFile());
         }
@@ -546,7 +546,7 @@ public final class MainView {
         if (dir != null && chooser.getInitialDirectory() == null) {
             chooser.setInitialDirectory(dir);
         }
-        File chosen = showDir(chooser);
+        File chosen = chooser.showDialog(stage);
         if (chosen != null) {
             rememberDirectory(chosen);
         }
