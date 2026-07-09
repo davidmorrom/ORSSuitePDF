@@ -10,17 +10,22 @@
     <packaging>jar</packaging>
 
     <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <javafx.version>21.0.2</javafx.version>
         <pdfbox.version>3.0.2</pdfbox.version>
-        <dss.version>6.1</dss.version>
-        <tess4j.version>5.11.0</tess4j.version>
         <atlantafx.version>2.0.1</atlantafx.version>
+        <junit.version>5.10.2</junit.version>
         <main.class>com.orsconsulting.orssuitepdf.core.Main</main.class>
     </properties>
 
+    <!--
+      El stack completo documentado en docs/adr/ADR-001 incluye además DSS
+      (firma PAdES) y Tess4J (OCR). Esas dependencias se incorporan en sus
+      fases del roadmap (firma / OCR) para no arrastrar artefactos que el
+      MVP no usa todavía. El MVP (visor + unir/dividir/rotar + marcadores)
+      solo necesita JavaFX, AtlantaFX y PDFBox.
+    -->
     <dependencies>
         <!-- UI -->
         <dependency>
@@ -39,31 +44,20 @@
             <version>${atlantafx.version}</version>
         </dependency>
 
-        <!-- Operaciones estructurales de PDF: unir, dividir, rotar,
-             marcadores, AcroForms, firma visual -->
+        <!-- Operaciones estructurales de PDF y renderizado a imagen:
+             unir, dividir, rotar, reordenar, marcadores, AcroForms -->
         <dependency>
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>
             <version>${pdfbox.version}</version>
         </dependency>
 
-        <!-- Firma digital PAdES (DSS - Comisión Europea) -->
+        <!-- Tests -->
         <dependency>
-            <groupId>eu.europa.ec.joinup.sd-dss</groupId>
-            <artifactId>dss-pades</artifactId>
-            <version>${dss.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>eu.europa.ec.joinup.sd-dss</groupId>
-            <artifactId>dss-token-provider</artifactId>
-            <version>${dss.version}</version>
-        </dependency>
-
-        <!-- OCR -->
-        <dependency>
-            <groupId>net.sourceforge.tess4j</groupId>
-            <artifactId>tess4j</artifactId>
-            <version>${tess4j.version}</version>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
