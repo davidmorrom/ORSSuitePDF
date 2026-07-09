@@ -63,12 +63,26 @@ public final class ThumbnailPanel extends BorderPane {
             cache.clear();
             rebuild();
         });
-        state.revisionProperty().addListener((o, a, b) -> {
-            cache.clear();
-            rebuild();
-        });
+        state.revisionProperty().addListener((o, a, b) -> onRevision());
         state.currentPageProperty().addListener((o, a, b) -> selectQuietly(b.intValue()));
         rebuild();
+    }
+
+    /**
+     * Ante una modificación: si cambió el nº de páginas, reconstruye la lista;
+     * si solo cambió el contenido, refresca la miniatura de la página actual
+     * sin resetear la lista ni la selección.
+     */
+    private void onRevision() {
+        PdfDocument document = state.getDocument();
+        int count = document != null ? document.pageCount() : 0;
+        if (count != list.getItems().size()) {
+            cache.clear();
+            rebuild();
+            return;
+        }
+        cache.remove(state.getCurrentPage());
+        list.refresh();
     }
 
     private void rebuild() {

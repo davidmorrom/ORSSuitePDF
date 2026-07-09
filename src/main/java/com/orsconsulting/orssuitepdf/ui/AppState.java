@@ -24,7 +24,10 @@ public final class AppState {
 
     private final ObjectProperty<PdfDocument> document = new SimpleObjectProperty<>(this, "document");
     private final IntegerProperty currentPage = new SimpleIntegerProperty(this, "currentPage", 0);
-    private final DoubleProperty zoom = new SimpleDoubleProperty(this, "zoom", 1.0);
+    /** Zoom inicial (algo reducido para que las páginas no se vean tan grandes). */
+    public static final double DEFAULT_ZOOM = 0.7;
+
+    private final DoubleProperty zoom = new SimpleDoubleProperty(this, "zoom", DEFAULT_ZOOM);
 
     /**
      * Contador que se incrementa cada vez que el documento se modifica "in

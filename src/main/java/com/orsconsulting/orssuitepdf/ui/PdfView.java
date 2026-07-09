@@ -59,6 +59,10 @@ public final class PdfView extends StackPane {
 
     /** Evita el bucle de realimentación entre scroll y página actual. */
     private boolean syncingFromScroll;
+    /** Mientras se reconstruye/reajusta, no se recalcula la página desde el scroll. */
+    private boolean adjustingScroll;
+    /** Nº de páginas para las que se construyó el visor (detecta cambios estructurales). */
+    private int builtPageCount = -1;
 
     /** Callback activo mientras se selecciona una región (firma visible). */
     private Consumer<PageRegion> pendingSelection;
@@ -89,7 +93,7 @@ public final class PdfView extends StackPane {
         showPlaceholder(true);
 
         state.documentProperty().addListener((obs, oldDoc, newDoc) -> rebuild());
-        state.revisionProperty().addListener((obs, oldR, newR) -> rebuild());
+        state.revisionProperty().addListener((obs, oldR, newR) -> onRevision());
         state.zoomProperty().addListener((obs, oldZ, newZ) -> applyZoom());
         state.currentPageProperty().addListener((obs, oldP, newP) -> {
             if (!syncingFromScroll) {
@@ -105,12 +109,16 @@ public final class PdfView extends StackPane {
     // --------------------------------------------------- construcción/zoom
 
     private void rebuild() {
+        int pageToRestore = state.getCurrentPage();
+        adjustingScroll = true;
         cells.clear();
         matchesByPage.clear();
         pagesBox.getChildren().clear();
 
         PdfDocument doc = state.getDocument();
         if (doc == null) {
+            builtPageCount = -1;
+            adjustingScroll = false;
             showPlaceholder(true);
             return;
         }
@@ -122,10 +130,47 @@ public final class PdfView extends StackPane {
             cells.add(cell);
             pagesBox.getChildren().add(cell);
         }
+        builtPageCount = doc.pageCount();
         Platform.runLater(() -> {
-            scrollToPage(state.getCurrentPage());
+            scrollToPage(Math.min(pageToRestore, cells.size() - 1));
+            adjustingScroll = false;
             onViewportChanged();
         });
+    }
+
+    /**
+     * Reacción a una modificación del documento. Si no cambió el número de
+     * páginas (anotar, resaltar, insertar contenido…), solo se re-renderizan
+     * las páginas visibles, conservando el scroll y la página actual. Solo si
+     * cambió la estructura (borrar/mover/insertar páginas) se reconstruye.
+     */
+    private void onRevision() {
+        PdfDocument doc = state.getDocument();
+        if (doc == null || doc.pageCount() != builtPageCount) {
+            rebuild();
+            return;
+        }
+        reRenderVisible();
+    }
+
+    /** Vuelve a renderizar solo las páginas visibles (tras un cambio de contenido). */
+    private void reRenderVisible() {
+        double viewportHeight = scroll.getViewportBounds().getHeight();
+        double contentHeight = pagesBox.getHeight();
+        if (viewportHeight <= 0 || contentHeight <= 0) {
+            return;
+        }
+        double top = Math.max(0, (contentHeight - viewportHeight) * scroll.getVvalue());
+        double bottom = top + viewportHeight;
+        for (PageCell cell : cells) {
+            double cellTop = cell.getBoundsInParent().getMinY();
+            double cellBottom = cell.getBoundsInParent().getMaxY();
+            if (cellBottom >= top - viewportHeight && cellTop <= bottom + viewportHeight) {
+                cell.invalidate();
+                cell.render();
+                cell.refreshMatches();
+            }
+        }
     }
 
     private void applyZoom() {
@@ -202,7 +247,7 @@ public final class PdfView extends StackPane {
             }
         }
 
-        if (centered != state.getCurrentPage()) {
+        if (!adjustingScroll && centered != state.getCurrentPage()) {
             syncingFromScroll = true;
             try {
                 state.setCurrentPage(centered);
