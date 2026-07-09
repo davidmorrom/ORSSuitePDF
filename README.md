@@ -60,24 +60,18 @@ Primero se genera el JAR con dependencias (fat jar). Su clase principal es
 ./mvnw clean package
 ```
 
-### App portable (sin WiX)
-Genera una carpeta ejecutable con su propio runtime, sin instalador:
+Luego se prepara una carpeta de _staging_ con el fat jar y los datos de OCR
+(jpackage copia todo el contenido de `--input` junto a la app):
 ```
-jpackage --type app-image ^
-  --name "ORS Suite PDF" ^
-  --input target/stage ^
-  --main-jar ors-suite-pdf-0.1.0.jar ^
-  --main-class com.orsconsulting.orssuitepdf.core.Launcher ^
-  --app-version 1.0.0 --vendor "ORS Consulting" ^
-  --dest target/dist ^
-  --java-options "--enable-native-access=ALL-UNNAMED"
+rmdir /s /q target\stage 2>nul & mkdir target\stage
+copy target\ors-suite-pdf-0.1.0.jar target\stage\
+xcopy /e /i tessdata target\stage\tessdata
 ```
-(`target/stage` debe contener únicamente el fat jar; el `.exe` queda en
-`target/dist/ORS Suite PDF/`.)
 
-### Instalador .exe/.msi (requiere WiX)
-Para un instalador de doble clic hay que tener **WiX Toolset 3.x** instalado
-(`choco install wixtoolset`). Después:
+### Instalador .exe (requiere WiX)
+Necesita **WiX Toolset 3.x** (`choco install wixtoolset`). El parámetro
+`-Dtessdata.dir=$APPDIR\tessdata` hace que la app instalada localice los
+datos de OCR:
 ```
 jpackage --type exe ^
   --name "ORS Suite PDF" ^
@@ -85,12 +79,19 @@ jpackage --type exe ^
   --main-jar ors-suite-pdf-0.1.0.jar ^
   --main-class com.orsconsulting.orssuitepdf.core.Launcher ^
   --app-version 1.0.0 --vendor "ORS Consulting" ^
+  --description "Editor de PDF profesional offline-first" ^
   --dest target/dist ^
-  --java-options "--enable-native-access=ALL-UNNAMED"
-  REM opcional: --icon build/icon.ico  --win-shortcut --win-menu
+  --java-options "--enable-native-access=ALL-UNNAMED" ^
+  --java-options "-Dtessdata.dir=$APPDIR\tessdata" ^
+  --win-shortcut --win-menu --win-dir-chooser
+  REM opcional: --icon build/icon.ico
 ```
-(En macOS/Linux, sustituir `--type exe` por `dmg`/`deb`/`app-image` y adaptar
-el icono.)
+El instalador queda en `target/dist/ORS Suite PDF-1.0.0.exe`.
+
+### App portable (sin WiX)
+Misma orden cambiando `--type exe` por `--type app-image`: genera una carpeta
+ejecutable con su propio runtime en `target/dist/ORS Suite PDF/`, sin
+instalador. (En macOS/Linux, usar `--type dmg`/`deb`/`app-image`.)
 
 Nota: sin certificado de firma de código, Windows SmartScreen puede
 mostrar un aviso al ejecutar el instalador por primera vez — no afecta a
@@ -107,7 +108,7 @@ Ver las decisiones de arquitectura documentadas en `docs/adr/`.
 3. ✅ OCR de páginas (Tess4J, offline) + inserción de texto sobre la página
 4. ✅ Firma PAdES con DSS (backend OpenPDF, ver ADR-003) y fallback
    online/offline: PAdES-B-T con sello de tiempo o PAdES-B sin conexión
-5. ⬜ Empaquetado a instalador (.exe/.dmg/.deb) con jpackage
+5. ✅ Empaquetado a instalador Windows (.exe) con jpackage + WiX
 
 La firma necesita un certificado PKCS#12 (.p12/.pfx); su contraseña se pide
 en el momento de firmar y no se almacena. Ningún certificado ni clave se

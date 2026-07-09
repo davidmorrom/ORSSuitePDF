@@ -34,10 +34,17 @@ public final class OcrService {
      * del directorio de trabajo en caso contrario.
      */
     public static Path defaultDataPath() {
+        // 1) Propiedad de sistema (la fija el empaquetado con -Dtessdata.dir).
+        String property = System.getProperty("tessdata.dir");
+        if (property != null && !property.isBlank()) {
+            return Paths.get(property);
+        }
+        // 2) Variable de entorno estándar de Tesseract.
         String env = System.getenv("TESSDATA_PREFIX");
         if (env != null && !env.isBlank()) {
             return Paths.get(env);
         }
+        // 3) Carpeta tessdata del directorio de trabajo (desarrollo).
         return Paths.get("tessdata");
     }
 
