@@ -69,28 +69,31 @@ xcopy /e /i tessdata target\stage\tessdata
 ```
 
 ### Instalador .exe (requiere WiX)
-Necesita **WiX Toolset 3.x** (`choco install wixtoolset`). El parámetro
-`-Dtessdata.dir=$APPDIR\tessdata` hace que la app instalada localice los
-datos de OCR:
+Necesita **WiX Toolset 3.x** (`choco install wixtoolset`). Se usa
+`--runtime-image` apuntando a un JDK completo para incluir en el runtime los
+proveedores criptográficos `jdk.crypto.mscapi` (almacén de Windows) y
+`jdk.crypto.cryptoki` (DNIe/PKCS#11), que la firma necesita y que el jlink por
+defecto omite. `-Dtessdata.dir=$APPDIR\tessdata` localiza los datos de OCR:
 ```
 jpackage --type exe ^
   --name "ORS Suite PDF" ^
   --input target/stage ^
   --main-jar ors-suite-pdf-0.1.0.jar ^
   --main-class com.orsconsulting.orssuitepdf.core.Launcher ^
+  --runtime-image "C:\Program Files\Eclipse Adoptium\jdk-25.0.3.9-hotspot" ^
   --app-version 1.0.0 --vendor "ORS Consulting" ^
   --description "Editor de PDF profesional offline-first" ^
-  --dest target/dist ^
+  --dest target/installer ^
   --java-options "--enable-native-access=ALL-UNNAMED" ^
   --java-options "-Dtessdata.dir=$APPDIR\tessdata" ^
   --win-shortcut --win-menu --win-dir-chooser
   REM opcional: --icon build/icon.ico
 ```
-El instalador queda en `target/dist/ORS Suite PDF-1.0.0.exe`.
+El instalador queda en `target/installer/ORS Suite PDF-1.0.0.exe`.
 
 ### App portable (sin WiX)
 Misma orden cambiando `--type exe` por `--type app-image`: genera una carpeta
-ejecutable con su propio runtime en `target/dist/ORS Suite PDF/`, sin
+ejecutable con su propio runtime en `target/installer/ORS Suite PDF/`, sin
 instalador. (En macOS/Linux, usar `--type dmg`/`deb`/`app-image`.)
 
 Nota: sin certificado de firma de código, Windows SmartScreen puede
