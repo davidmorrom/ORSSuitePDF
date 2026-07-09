@@ -24,6 +24,7 @@ import com.orsconsulting.orssuitepdf.ocr.OcrService;
 import com.orsconsulting.orssuitepdf.signing.PAdESSigner;
 import com.orsconsulting.orssuitepdf.signing.SignResult;
 import com.orsconsulting.orssuitepdf.signing.SignSpec;
+import com.orsconsulting.orssuitepdf.signing.SignatureValidationService;
 import com.orsconsulting.orssuitepdf.signing.SigningTokens;
 import com.orsconsulting.orssuitepdf.signing.VisibleSignature;
 
@@ -261,7 +262,9 @@ public final class MainView {
         Menu sign = new Menu("Firma");
         MenuItem signItem = new MenuItem("Firmar con certificado…");
         signItem.setOnAction(e -> signDocument());
-        sign.getItems().add(signItem);
+        MenuItem validateItem = new MenuItem("Validar firmas…");
+        validateItem.setOnAction(e -> validateSignatures());
+        sign.getItems().addAll(signItem, validateItem);
 
         Menu help = new Menu("Ayuda");
         MenuItem about = new MenuItem("Acerca de ORS Suite PDF");
@@ -1176,6 +1179,58 @@ public final class MainView {
     }
 
     // ------------------------------------------------------------- firma
+
+    private void validateSignatures() {
+        if (!state.hasDocument()) {
+            return;
+        }
+        Path source = state.getDocument().source();
+        if (source == null) {
+            showError("Validar firmas", "Guarda el documento antes de validar sus firmas.");
+            return;
+        }
+        statusLabel.setText("Validando firmas…");
+        runBackground(() -> {
+            List<SignatureValidationService.SignatureInfo> signatures =
+                    SignatureValidationService.validate(source);
+            Platform.runLater(() -> {
+                if (signatures.isEmpty()) {
+                    statusLabel.setText("El documento no tiene firmas");
+                    Alert alert = new Alert(AlertType.INFORMATION);
+                    alert.setTitle("Validar firmas");
+                    alert.setHeaderText(null);
+                    alert.setContentText("El documento no contiene firmas digitales.");
+                    alert.initOwner(stage);
+                    alert.showAndWait();
+                    return;
+                }
+                StringBuilder sb = new StringBuilder();
+                for (SignatureValidationService.SignatureInfo s : signatures) {
+                    sb.append("Firma ").append(s.index()).append('\n')
+                            .append("  Firmante:  ").append(s.signedBy()).append('\n')
+                            .append("  Formato:   ").append(s.format()).append('\n')
+                            .append("  Resultado: ").append(s.indication()).append('\n')
+                            .append("  Fecha:     ").append(s.signingTime()).append("\n\n");
+                }
+                statusLabel.setText(signatures.size() + " firma(s) encontrada(s)");
+                showReport("Firmas del documento", sb.toString().strip());
+            });
+        }, "No se pudieron validar las firmas");
+    }
+
+    private void showReport(String title, String body) {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle(title);
+        dialog.setHeaderText(title);
+        dialog.initOwner(stage);
+        TextArea area = new TextArea(body);
+        area.setEditable(false);
+        area.setWrapText(true);
+        area.setPrefSize(520, 320);
+        dialog.getDialogPane().setContent(area);
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.showAndWait();
+    }
 
     private void signDocument() {
         if (!state.hasDocument()) {
