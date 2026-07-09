@@ -35,17 +35,47 @@ desarrollar ni usar la app.
 ./mvnw test                 # ejecuta las pruebas
 ```
 
-## Compilar a .exe (u otros instaladores)
+## Empaquetado
+
+Primero se genera el JAR con dependencias (fat jar). Su clase principal es
+`…core.Launcher` (no extiende `Application`), lo que permite ejecutarlo con
+`java -jar` y empaquetarlo con jpackage.
+
 ```
-mvn clean package
-jpackage --input target/ ^
-  --main-jar ors-suite-pdf-0.1.0.jar ^
-  --main-class com.orsconsulting.orssuitepdf.core.Main ^
+./mvnw clean package
+```
+
+### App portable (sin WiX)
+Genera una carpeta ejecutable con su propio runtime, sin instalador:
+```
+jpackage --type app-image ^
   --name "ORS Suite PDF" ^
-  --type exe ^
-  --icon build/icon.ico
+  --input target/stage ^
+  --main-jar ors-suite-pdf-0.1.0.jar ^
+  --main-class com.orsconsulting.orssuitepdf.core.Launcher ^
+  --app-version 1.0.0 --vendor "ORS Consulting" ^
+  --dest target/dist ^
+  --java-options "--enable-native-access=ALL-UNNAMED"
 ```
-(En macOS/Linux, sustituir `--type exe` por `dmg`/`deb` y adaptar el icono.)
+(`target/stage` debe contener únicamente el fat jar; el `.exe` queda en
+`target/dist/ORS Suite PDF/`.)
+
+### Instalador .exe/.msi (requiere WiX)
+Para un instalador de doble clic hay que tener **WiX Toolset 3.x** instalado
+(`choco install wixtoolset`). Después:
+```
+jpackage --type exe ^
+  --name "ORS Suite PDF" ^
+  --input target/stage ^
+  --main-jar ors-suite-pdf-0.1.0.jar ^
+  --main-class com.orsconsulting.orssuitepdf.core.Launcher ^
+  --app-version 1.0.0 --vendor "ORS Consulting" ^
+  --dest target/dist ^
+  --java-options "--enable-native-access=ALL-UNNAMED"
+  REM opcional: --icon build/icon.ico  --win-shortcut --win-menu
+```
+(En macOS/Linux, sustituir `--type exe` por `dmg`/`deb`/`app-image` y adaptar
+el icono.)
 
 Nota: sin certificado de firma de código, Windows SmartScreen puede
 mostrar un aviso al ejecutar el instalador por primera vez — no afecta a
