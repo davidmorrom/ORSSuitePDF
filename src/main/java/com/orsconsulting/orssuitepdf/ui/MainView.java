@@ -20,6 +20,7 @@ import com.orsconsulting.orssuitepdf.core.RedactionService;
 import com.orsconsulting.orssuitepdf.core.SearchService;
 import com.orsconsulting.orssuitepdf.core.SecurityService;
 import com.orsconsulting.orssuitepdf.core.StampService;
+import com.orsconsulting.orssuitepdf.core.WatermarkService;
 import com.orsconsulting.orssuitepdf.ocr.OcrService;
 import com.orsconsulting.orssuitepdf.signing.PAdESSigner;
 import com.orsconsulting.orssuitepdf.signing.SignResult;
@@ -232,7 +233,11 @@ public final class MainView {
         stamp.setOnAction(e -> insertImage());
         MenuItem textItem = new MenuItem("Texto…");
         textItem.setOnAction(e -> insertText());
-        insert.getItems().addAll(stamp, textItem);
+        MenuItem watermark = new MenuItem("Marca de agua…");
+        watermark.setOnAction(e -> addWatermark());
+        MenuItem numbering = new MenuItem("Numerar páginas");
+        numbering.setOnAction(e -> numberPages());
+        insert.getItems().addAll(stamp, textItem, new SeparatorMenuItem(), watermark, numbering);
 
         Menu annotate = new Menu("Anotar");
         MenuItem hl = new MenuItem("Resaltar zona");
@@ -1129,6 +1134,44 @@ public final class MainView {
                 showError("No se pudo añadir la nota", ex.getMessage());
             }
         });
+    }
+
+    // ------------------------------------------------ marca de agua / nº
+
+    private void addWatermark() {
+        if (!state.hasDocument()) {
+            return;
+        }
+        javafx.scene.control.TextInputDialog dialog =
+                new javafx.scene.control.TextInputDialog("CONFIDENCIAL");
+        dialog.setTitle("Marca de agua");
+        dialog.setHeaderText("Texto de la marca de agua (se aplica a todas las páginas)");
+        dialog.setContentText("Texto:");
+        dialog.initOwner(stage);
+        Optional<String> text = dialog.showAndWait();
+        if (text.isEmpty() || text.get().isBlank()) {
+            return;
+        }
+        try {
+            WatermarkService.watermark(state.getDocument(), text.get().trim());
+            state.markMutated();
+            statusLabel.setText("Marca de agua añadida");
+        } catch (Exception ex) {
+            showError("No se pudo añadir la marca de agua", ex.getMessage());
+        }
+    }
+
+    private void numberPages() {
+        if (!state.hasDocument()) {
+            return;
+        }
+        try {
+            WatermarkService.numberPages(state.getDocument());
+            state.markMutated();
+            statusLabel.setText("Páginas numeradas");
+        } catch (Exception ex) {
+            showError("No se pudieron numerar las páginas", ex.getMessage());
+        }
     }
 
     // --------------------------------------------------------- redacción
