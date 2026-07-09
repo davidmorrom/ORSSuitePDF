@@ -21,6 +21,8 @@ import javafx.scene.image.ImageView;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Line;
+import javafx.scene.shape.Polyline;
 import javafx.scene.shape.Rectangle;
 import javafx.geometry.Pos;
 
@@ -60,6 +62,10 @@ public final class PdfView extends StackPane {
 
     /** Callback activo mientras se selecciona una región (firma visible). */
     private Consumer<PageRegion> pendingSelection;
+    /** Callback activo mientras se dibuja un trazo a mano alzada. */
+    private Consumer<PagePath> pendingPath;
+    /** Callback activo mientras se dibuja una flecha. */
+    private Consumer<PageLine> pendingLine;
 
     /** Coincidencias de búsqueda a resaltar, por página (recuadros en puntos). */
     private final Map<Integer, List<double[]>> matchesByPage = new HashMap<>();
@@ -238,6 +244,9 @@ public final class PdfView extends StackPane {
 
         private final Rectangle selectionRect = new Rectangle();
         private final List<Rectangle> matchRects = new ArrayList<>();
+        private final Polyline inkOverlay = new Polyline();
+        private final Line lineOverlay = new Line();
+        private final List<double[]> inkPoints = new ArrayList<>();
         private double startX;
         private double startY;
 
@@ -253,49 +262,92 @@ public final class PdfView extends StackPane {
             selectionRect.setStroke(Color.web("#2f6fed"));
             selectionRect.setStrokeWidth(1.5);
 
-            getChildren().addAll(imageView, selectionRect);
+            for (var overlay : new javafx.scene.shape.Shape[]{inkOverlay, lineOverlay}) {
+                overlay.setManaged(false);
+                overlay.setVisible(false);
+                overlay.setStroke(Color.web("#d32f2f"));
+                overlay.setStrokeWidth(2);
+                overlay.setFill(null);
+            }
+            getChildren().addAll(imageView, selectionRect, inkOverlay, lineOverlay);
 
             setOnMousePressed(e -> {
-                if (pendingSelection == null) {
-                    return;
-                }
-                startX = clampToPage(e.getX(), getWidth());
-                startY = clampToPage(e.getY(), getHeight());
-                selectionRect.setX(startX);
-                selectionRect.setY(startY);
-                selectionRect.setWidth(0);
-                selectionRect.setHeight(0);
-                selectionRect.setVisible(true);
-                e.consume();
-            });
-            setOnMouseDragged(e -> {
-                if (pendingSelection == null || !selectionRect.isVisible()) {
-                    return;
-                }
                 double x = clampToPage(e.getX(), getWidth());
                 double y = clampToPage(e.getY(), getHeight());
-                selectionRect.setX(Math.min(startX, x));
-                selectionRect.setY(Math.min(startY, y));
-                selectionRect.setWidth(Math.abs(x - startX));
-                selectionRect.setHeight(Math.abs(y - startY));
-                e.consume();
+                if (pendingSelection != null) {
+                    startX = x;
+                    startY = y;
+                    selectionRect.setX(x);
+                    selectionRect.setY(y);
+                    selectionRect.setWidth(0);
+                    selectionRect.setHeight(0);
+                    selectionRect.setVisible(true);
+                    e.consume();
+                } else if (pendingPath != null) {
+                    inkPoints.clear();
+                    inkPoints.add(new double[]{x, y});
+                    inkOverlay.getPoints().setAll(x, y);
+                    inkOverlay.setVisible(true);
+                    e.consume();
+                } else if (pendingLine != null) {
+                    startX = x;
+                    startY = y;
+                    lineOverlay.setStartX(x);
+                    lineOverlay.setStartY(y);
+                    lineOverlay.setEndX(x);
+                    lineOverlay.setEndY(y);
+                    lineOverlay.setVisible(true);
+                    e.consume();
+                }
+            });
+            setOnMouseDragged(e -> {
+                double x = clampToPage(e.getX(), getWidth());
+                double y = clampToPage(e.getY(), getHeight());
+                if (pendingSelection != null && selectionRect.isVisible()) {
+                    selectionRect.setX(Math.min(startX, x));
+                    selectionRect.setY(Math.min(startY, y));
+                    selectionRect.setWidth(Math.abs(x - startX));
+                    selectionRect.setHeight(Math.abs(y - startY));
+                    e.consume();
+                } else if (pendingPath != null && inkOverlay.isVisible()) {
+                    inkPoints.add(new double[]{x, y});
+                    inkOverlay.getPoints().addAll(x, y);
+                    e.consume();
+                } else if (pendingLine != null && lineOverlay.isVisible()) {
+                    lineOverlay.setEndX(x);
+                    lineOverlay.setEndY(y);
+                    e.consume();
+                }
             });
             setOnMouseReleased(e -> {
-                if (pendingSelection == null || !selectionRect.isVisible()) {
-                    return;
-                }
-                selectionRect.setVisible(false);
                 double scale = state.getZoom() * BASE_DPI / 72.0;
-                double w = selectionRect.getWidth();
-                double h = selectionRect.getHeight();
-                if (w < 8 || h < 8) {
-                    finishSelection(null); // demasiado pequeño: cancelar
-                } else {
-                    finishSelection(new PageRegion(index,
+                if (pendingSelection != null && selectionRect.isVisible()) {
+                    selectionRect.setVisible(false);
+                    double w = selectionRect.getWidth();
+                    double h = selectionRect.getHeight();
+                    finishSelection(w < 8 || h < 8 ? null : new PageRegion(index,
                             selectionRect.getX() / scale, selectionRect.getY() / scale,
                             w / scale, h / scale));
+                    e.consume();
+                } else if (pendingPath != null && inkOverlay.isVisible()) {
+                    inkOverlay.setVisible(false);
+                    List<double[]> points = new ArrayList<>();
+                    for (double[] p : inkPoints) {
+                        points.add(new double[]{p[0] / scale, p[1] / scale});
+                    }
+                    inkPoints.clear();
+                    finishPath(points.size() >= 2 ? new PagePath(index, points) : null);
+                    e.consume();
+                } else if (pendingLine != null && lineOverlay.isVisible()) {
+                    lineOverlay.setVisible(false);
+                    double x1 = lineOverlay.getStartX() / scale;
+                    double y1 = lineOverlay.getStartY() / scale;
+                    double x2 = lineOverlay.getEndX() / scale;
+                    double y2 = lineOverlay.getEndY() / scale;
+                    finishLine(Math.hypot(x2 - x1, y2 - y1) < 5 ? null
+                            : new PageLine(index, x1, y1, x2, y2));
+                    e.consume();
                 }
-                e.consume();
             });
         }
 
@@ -402,5 +454,47 @@ public final class PdfView extends StackPane {
 
     /** Región seleccionada en una página, en puntos PDF (origen superior izq.). */
     public record PageRegion(int page, double x, double y, double width, double height) {
+    }
+
+    /** Activa el modo de dibujo libre; entrega el trazo capturado. */
+    public void beginFreehand(Consumer<PagePath> onDone) {
+        pendingPath = onDone;
+        scroll.setPannable(false);
+        scroll.setCursor(Cursor.CROSSHAIR);
+    }
+
+    /** Activa el modo flecha; entrega la línea trazada. */
+    public void beginArrow(Consumer<PageLine> onDone) {
+        pendingLine = onDone;
+        scroll.setPannable(false);
+        scroll.setCursor(Cursor.CROSSHAIR);
+    }
+
+    private void finishPath(PagePath path) {
+        Consumer<PagePath> callback = pendingPath;
+        pendingPath = null;
+        scroll.setPannable(true);
+        scroll.setCursor(Cursor.DEFAULT);
+        if (callback != null) {
+            callback.accept(path);
+        }
+    }
+
+    private void finishLine(PageLine line) {
+        Consumer<PageLine> callback = pendingLine;
+        pendingLine = null;
+        scroll.setPannable(true);
+        scroll.setCursor(Cursor.DEFAULT);
+        if (callback != null) {
+            callback.accept(line);
+        }
+    }
+
+    /** Trazo a mano alzada en una página: puntos en puntos PDF (origen sup. izq.). */
+    public record PagePath(int page, List<double[]> points) {
+    }
+
+    /** Flecha en una página: de (x1,y1) a (x2,y2) en puntos PDF (origen sup. izq.). */
+    public record PageLine(int page, double x1, double y1, double x2, double y2) {
     }
 }

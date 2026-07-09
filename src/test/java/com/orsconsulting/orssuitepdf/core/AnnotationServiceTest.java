@@ -27,6 +27,22 @@ class AnnotationServiceTest {
     }
 
     @Test
+    void freehandAndArrowDoNotFail() throws IOException {
+        Path pdf = samplePdf();
+        try (PdfDocument doc = PdfDocument.open(pdf)) {
+            AnnotationService.freehand(doc, 0,
+                    java.util.List.of(new double[]{50, 50}, new double[]{80, 90}, new double[]{120, 60}),
+                    new float[]{0.85f, 0.15f, 0.15f}, 2f);
+            AnnotationService.arrow(doc, 0, 200, 200, 300, 260,
+                    new float[]{0.15f, 0.3f, 0.85f}, 2f);
+            doc.pdbox().save(pdf.toFile());
+        }
+        try (PDDocument doc = Loader.loadPDF(pdf.toFile())) {
+            assertTrue(doc.getNumberOfPages() == 1);
+        }
+    }
+
+    @Test
     void annotationsArePersisted() throws IOException {
         Path pdf = samplePdf();
         try (PdfDocument doc = PdfDocument.open(pdf)) {

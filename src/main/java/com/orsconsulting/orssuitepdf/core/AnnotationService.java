@@ -1,9 +1,12 @@
 package com.orsconsulting.orssuitepdf.core;
 
 import java.io.IOException;
+import java.util.List;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.PDPageContentStream.AppendMode;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.graphics.color.PDColor;
 import org.apache.pdfbox.pdmodel.graphics.color.PDDeviceRGB;
@@ -74,5 +77,65 @@ public final class AnnotationService {
         note.setOpen(false);
         note.setRectangle(new PDRectangle((float) x, (float) (pageHeight - y - 18), 18, 18));
         pdPage.getAnnotations().add(note);
+    }
+
+    // Los trazos libres y las flechas se dibujan directamente en el contenido
+    // de la página para que se rendericen de forma fiable en cualquier visor.
+
+    /**
+     * Dibuja un trazo a mano alzada uniendo los puntos dados (en puntos PDF con
+     * origen superior izquierdo).
+     */
+    public static void freehand(PdfDocument document, int page, List<double[]> points,
+                                float[] rgb, float width) throws IOException {
+        if (points == null || points.size() < 2) {
+            return;
+        }
+        PDDocument doc = document.pdbox();
+        PDPage pdPage = doc.getPage(page);
+        float ph = pdPage.getMediaBox().getHeight();
+        try (PDPageContentStream cs = new PDPageContentStream(doc, pdPage, AppendMode.APPEND, true, true)) {
+            cs.setStrokingColor(rgb[0], rgb[1], rgb[2]);
+            cs.setLineWidth(width);
+            cs.setLineCapStyle(1);
+            cs.setLineJoinStyle(1);
+            double[] first = points.get(0);
+            cs.moveTo((float) first[0], (float) (ph - first[1]));
+            for (int i = 1; i < points.size(); i++) {
+                double[] p = points.get(i);
+                cs.lineTo((float) p[0], (float) (ph - p[1]));
+            }
+            cs.stroke();
+        }
+    }
+
+    /** Dibuja una flecha de {@code (x1,y1)} a {@code (x2,y2)} (origen superior izq.). */
+    public static void arrow(PdfDocument document, int page, double x1, double y1,
+                             double x2, double y2, float[] rgb, float width) throws IOException {
+        PDDocument doc = document.pdbox();
+        PDPage pdPage = doc.getPage(page);
+        float ph = pdPage.getMediaBox().getHeight();
+        float ax1 = (float) x1;
+        float ay1 = (float) (ph - y1);
+        float ax2 = (float) x2;
+        float ay2 = (float) (ph - y2);
+        double angle = Math.atan2(ay2 - ay1, ax2 - ax1);
+        double head = 10 + width * 2;
+        try (PDPageContentStream cs = new PDPageContentStream(doc, pdPage, AppendMode.APPEND, true, true)) {
+            cs.setStrokingColor(rgb[0], rgb[1], rgb[2]);
+            cs.setLineWidth(width);
+            cs.setLineCapStyle(1);
+            cs.moveTo(ax1, ay1);
+            cs.lineTo(ax2, ay2);
+            cs.stroke();
+            double left = angle + Math.toRadians(150);
+            double right = angle - Math.toRadians(150);
+            cs.moveTo(ax2, ay2);
+            cs.lineTo((float) (ax2 + head * Math.cos(left)), (float) (ay2 + head * Math.sin(left)));
+            cs.stroke();
+            cs.moveTo(ax2, ay2);
+            cs.lineTo((float) (ax2 + head * Math.cos(right)), (float) (ay2 + head * Math.sin(right)));
+            cs.stroke();
+        }
     }
 }

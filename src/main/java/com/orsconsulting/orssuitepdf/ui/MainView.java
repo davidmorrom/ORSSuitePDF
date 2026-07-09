@@ -253,7 +253,11 @@ public final class MainView {
                 (d, r) -> AnnotationService.rectangle(d, r.page(), r.x(), r.y(), r.width(), r.height())));
         MenuItem note = new MenuItem("Nota…");
         note.setOnAction(e -> annotateNote());
-        annotate.getItems().addAll(hl, rect, note);
+        MenuItem ink = new MenuItem("Dibujo libre");
+        ink.setOnAction(e -> annotateFreehand());
+        MenuItem arrow = new MenuItem("Flecha");
+        arrow.setOnAction(e -> annotateArrow());
+        annotate.getItems().addAll(hl, rect, note, new SeparatorMenuItem(), ink, arrow);
 
         Menu tools = new Menu("Herramientas");
         MenuItem ocr = new MenuItem("OCR de la página actual");
@@ -1120,6 +1124,49 @@ public final class MainView {
                 statusLabel.setText(successMessage);
             } catch (Exception ex) {
                 showError("No se pudo anotar", ex.getMessage());
+            }
+        });
+    }
+
+    private static final float[] DRAW_COLOR = {0.85f, 0.15f, 0.15f};
+
+    private void annotateFreehand() {
+        if (!state.hasDocument()) {
+            return;
+        }
+        statusLabel.setText("Dibuja a mano alzada sobre la página…");
+        pdfView.beginFreehand(path -> {
+            if (path == null) {
+                statusLabel.setText("Dibujo cancelado");
+                return;
+            }
+            try {
+                AnnotationService.freehand(state.getDocument(), path.page(), path.points(), DRAW_COLOR, 2f);
+                state.markMutated();
+                statusLabel.setText("Trazo añadido");
+            } catch (Exception ex) {
+                showError("No se pudo dibujar", ex.getMessage());
+            }
+        });
+    }
+
+    private void annotateArrow() {
+        if (!state.hasDocument()) {
+            return;
+        }
+        statusLabel.setText("Arrastra para dibujar una flecha…");
+        pdfView.beginArrow(line -> {
+            if (line == null) {
+                statusLabel.setText("Flecha cancelada");
+                return;
+            }
+            try {
+                AnnotationService.arrow(state.getDocument(), line.page(),
+                        line.x1(), line.y1(), line.x2(), line.y2(), DRAW_COLOR, 2f);
+                state.markMutated();
+                statusLabel.setText("Flecha añadida");
+            } catch (Exception ex) {
+                showError("No se pudo dibujar la flecha", ex.getMessage());
             }
         });
     }
