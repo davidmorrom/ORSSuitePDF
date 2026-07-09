@@ -15,6 +15,7 @@ import java.util.prefs.Preferences;
 import com.orsconsulting.orssuitepdf.core.ExportService;
 import com.orsconsulting.orssuitepdf.core.PdfDocument;
 import com.orsconsulting.orssuitepdf.core.PdfOperations;
+import com.orsconsulting.orssuitepdf.core.RedactionService;
 import com.orsconsulting.orssuitepdf.core.StampService;
 import com.orsconsulting.orssuitepdf.ocr.OcrService;
 import com.orsconsulting.orssuitepdf.signing.PAdESSigner;
@@ -199,7 +200,9 @@ public final class MainView {
         Menu tools = new Menu("Herramientas");
         MenuItem ocr = new MenuItem("OCR de la página actual");
         ocr.setOnAction(e -> ocrCurrentPage());
-        tools.getItems().add(ocr);
+        MenuItem redact = new MenuItem("Redactar zona…");
+        redact.setOnAction(e -> redactZone());
+        tools.getItems().addAll(ocr, redact);
 
         Menu sign = new Menu("Firma");
         MenuItem signItem = new MenuItem("Firmar con certificado…");
@@ -811,6 +814,30 @@ public final class MainView {
             return "documento";
         }
         return source.getFileName().toString().replaceFirst("(?i)\\.pdf$", "");
+    }
+
+    // --------------------------------------------------------- redacción
+
+    private void redactZone() {
+        if (!state.hasDocument()) {
+            return;
+        }
+        statusLabel.setText("Dibuja la zona a redactar sobre la página…");
+        pdfView.beginRegionSelection(region -> {
+            if (region == null) {
+                statusLabel.setText("Redacción cancelada");
+                return;
+            }
+            try {
+                RedactionService.redact(state.getDocument(), region.page(),
+                        List.of(new double[]{region.x(), region.y(), region.width(), region.height()}));
+                state.markMutated();
+                statusLabel.setText("Zona redactada en la página " + (region.page() + 1)
+                        + " (la página pasa a ser imagen para que el contenido no sea recuperable)");
+            } catch (Exception ex) {
+                showError("No se pudo redactar", ex.getMessage());
+            }
+        });
     }
 
     // --------------------------------------------------------- impresión
