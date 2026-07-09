@@ -15,8 +15,11 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import eu.europa.esig.dss.token.DSSPrivateKeyEntry;
+import eu.europa.esig.dss.token.SignatureTokenConnection;
+
 /**
- * Verifica la tubería de firma con un certificado autofirmado de PRUEBA,
+ * Verifica la tubería de firma con un certificado autofirmado de PRUEBA
  * generado al vuelo. Nunca usa el certificado personal real.
  */
 class PAdESSignerTest {
@@ -26,30 +29,23 @@ class PAdESSignerTest {
 
     private static final char[] PASSWORD = "test1234".toCharArray();
 
-    /** Genera un PKCS#12 autofirmado de prueba con keytool. */
     private Path testKeystore() throws IOException, InterruptedException {
         Path p12 = tempDir.resolve("test.p12");
         String javaHome = System.getProperty("java.home");
         boolean windows = System.getProperty("os.name").toLowerCase().contains("win");
         Path keytool = Paths.get(javaHome, "bin", windows ? "keytool.exe" : "keytool");
-
         Process process = new ProcessBuilder(
                 keytool.toString(),
                 "-genkeypair", "-alias", "ors-test",
-                "-keyalg", "RSA", "-keysize", "2048",
-                "-sigalg", "SHA256withRSA",
+                "-keyalg", "RSA", "-keysize", "2048", "-sigalg", "SHA256withRSA",
                 "-dname", "CN=ORS Test, O=ORS Consulting, C=ES",
                 "-validity", "365",
-                "-keystore", p12.toString(),
-                "-storetype", "PKCS12",
-                "-storepass", new String(PASSWORD),
-                "-keypass", new String(PASSWORD))
-                .redirectErrorStream(true)
-                .start();
+                "-keystore", p12.toString(), "-storetype", "PKCS12",
+                "-storepass", new String(PASSWORD), "-keypass", new String(PASSWORD))
+                .redirectErrorStream(true).start();
         process.getInputStream().readAllBytes();
-        int exit = process.waitFor();
-        if (exit != 0 || !Files.exists(p12)) {
-            throw new IOException("keytool no pudo generar el keystore de prueba (exit " + exit + ")");
+        if (process.waitFor() != 0 || !Files.exists(p12)) {
+            throw new IOException("keytool no pudo generar el keystore de prueba");
         }
         return p12;
     }
@@ -63,38 +59,49 @@ class PAdESSignerTest {
         return out;
     }
 
+    private int signatureCount(Path pdf) throws IOException {
+        try (PDDocument doc = Loader.loadPDF(pdf.toFile())) {
+            return doc.getSignatureDictionaries().size();
+        }
+    }
+
     @Test
     void signsOfflineWithBaselineBWhenNoTsa() throws Exception {
         Path keystore = testKeystore();
-        Path pdf = samplePdf();
         Path output = tempDir.resolve("signed.pdf");
-
-        SignRequest request = new SignRequest(
-                pdf, output, keystore, PASSWORD, null, "Prueba de firma", "Madrid");
-        SignResult result = new PAdESSigner().sign(request);
-
-        assertFalse(result.timestamped(), "sin TSA debe caer a PAdES-B");
-        assertTrue(Files.exists(output));
-
-        try (PDDocument signed = Loader.loadPDF(output.toFile())) {
-            assertFalse(signed.getSignatureDictionaries().isEmpty(),
-                    "el PDF firmado debe contener al menos una firma");
+        try (SignatureTokenConnection token = SigningTokens.pkcs12(keystore, PASSWORD)) {
+            DSSPrivateKeyEntry key = token.getKeys().get(0);
+            SignSpec spec = new SignSpec(samplePdf(), output, null, "Prueba", "Madrid", null);
+            SignResult result = new PAdESSigner().sign(token, key, spec);
+            assertFalse(result.timestamped(), "sin TSA debe caer a PAdES-B");
         }
+        assertTrue(signatureCount(output) >= 1, "debe haber una firma");
     }
 
     @Test
     void fallsBackToBaselineBWhenTsaUnreachable() throws Exception {
         Path keystore = testKeystore();
-        Path pdf = samplePdf();
-        Path output = tempDir.resolve("signed-fallback.pdf");
-
-        // TSA inexistente: el intento B-T debe fallar y degradar a B sin lanzar.
-        SignRequest request = new SignRequest(
-                pdf, output, keystore, PASSWORD,
-                "http://tsa.invalid.local/tsr", "Prueba", "Madrid");
-        SignResult result = new PAdESSigner().sign(request);
-
-        assertFalse(result.timestamped(), "un TSA inalcanzable debe degradar a PAdES-B");
+        Path output = tempDir.resolve("fallback.pdf");
+        try (SignatureTokenConnection token = SigningTokens.pkcs12(keystore, PASSWORD)) {
+            DSSPrivateKeyEntry key = token.getKeys().get(0);
+            SignSpec spec = new SignSpec(samplePdf(), output,
+                    "http://tsa.invalid.local/tsr", "Prueba", "Madrid", null);
+            SignResult result = new PAdESSigner().sign(token, key, spec);
+            assertFalse(result.timestamped(), "un TSA inalcanzable debe degradar a PAdES-B");
+        }
         assertTrue(Files.exists(output));
+    }
+
+    @Test
+    void signsWithVisibleSignature() throws Exception {
+        Path keystore = testKeystore();
+        Path output = tempDir.resolve("visible.pdf");
+        try (SignatureTokenConnection token = SigningTokens.pkcs12(keystore, PASSWORD)) {
+            DSSPrivateKeyEntry key = token.getKeys().get(0);
+            VisibleSignature visible = new VisibleSignature(0, 50, 50, 220, 70, "Firma de prueba");
+            SignSpec spec = new SignSpec(samplePdf(), output, null, "Prueba", "Madrid", visible);
+            new PAdESSigner().sign(token, key, spec);
+        }
+        assertTrue(signatureCount(output) >= 1, "la firma visible también debe embeber la firma");
     }
 }

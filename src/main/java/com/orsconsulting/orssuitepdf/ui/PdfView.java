@@ -5,18 +5,21 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 import com.orsconsulting.orssuitepdf.core.PdfDocument;
 
 import javafx.application.Platform;
-import javafx.geometry.Bounds;
-import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
+import javafx.geometry.Pos;
 
 /**
  * Visor central con desplazamiento vertical continuo: todas las páginas se
@@ -51,6 +54,9 @@ public final class PdfView extends StackPane {
 
     /** Evita el bucle de realimentación entre scroll y página actual. */
     private boolean syncingFromScroll;
+
+    /** Callback activo mientras se selecciona una región (firma visible). */
+    private Consumer<PageRegion> pendingSelection;
 
     public PdfView(AppState state) {
         this.state = state;
@@ -198,12 +204,70 @@ public final class PdfView extends StackPane {
         private final AtomicLong ticket = new AtomicLong();
         private double renderedZoom = -1;
 
+        private final Rectangle selectionRect = new Rectangle();
+        private double startX;
+        private double startY;
+
         PageCell(int index) {
             this.index = index;
             imageView.setPreserveRatio(true);
             imageView.setSmooth(true);
             setStyle("-fx-background-color: white; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.25), 8, 0, 0, 2);");
-            getChildren().add(imageView);
+
+            selectionRect.setManaged(false);
+            selectionRect.setVisible(false);
+            selectionRect.setFill(Color.web("#2f6fed", 0.20));
+            selectionRect.setStroke(Color.web("#2f6fed"));
+            selectionRect.setStrokeWidth(1.5);
+
+            getChildren().addAll(imageView, selectionRect);
+
+            setOnMousePressed(e -> {
+                if (pendingSelection == null) {
+                    return;
+                }
+                startX = clampToPage(e.getX(), getWidth());
+                startY = clampToPage(e.getY(), getHeight());
+                selectionRect.setX(startX);
+                selectionRect.setY(startY);
+                selectionRect.setWidth(0);
+                selectionRect.setHeight(0);
+                selectionRect.setVisible(true);
+                e.consume();
+            });
+            setOnMouseDragged(e -> {
+                if (pendingSelection == null || !selectionRect.isVisible()) {
+                    return;
+                }
+                double x = clampToPage(e.getX(), getWidth());
+                double y = clampToPage(e.getY(), getHeight());
+                selectionRect.setX(Math.min(startX, x));
+                selectionRect.setY(Math.min(startY, y));
+                selectionRect.setWidth(Math.abs(x - startX));
+                selectionRect.setHeight(Math.abs(y - startY));
+                e.consume();
+            });
+            setOnMouseReleased(e -> {
+                if (pendingSelection == null || !selectionRect.isVisible()) {
+                    return;
+                }
+                selectionRect.setVisible(false);
+                double scale = state.getZoom() * BASE_DPI / 72.0;
+                double w = selectionRect.getWidth();
+                double h = selectionRect.getHeight();
+                if (w < 8 || h < 8) {
+                    finishSelection(null); // demasiado pequeño: cancelar
+                } else {
+                    finishSelection(new PageRegion(index,
+                            selectionRect.getX() / scale, selectionRect.getY() / scale,
+                            w / scale, h / scale));
+                }
+                e.consume();
+            });
+        }
+
+        private double clampToPage(double value, double max) {
+            return Math.max(0, Math.min(max, value));
         }
 
         void resizeToPage() {
@@ -258,11 +322,31 @@ public final class PdfView extends StackPane {
         }
     }
 
-    /** Bounds de una página en coordenadas de la escena (para selección). */
-    Bounds pageBoundsInScene(int index) {
-        if (index < 0 || index >= cells.size()) {
-            return null;
+    // -------------------------------------------- selección de región (firma)
+
+    /**
+     * Activa el modo de selección: el usuario arrastra un rectángulo sobre una
+     * página y se invoca {@code onSelected} con la región en puntos PDF (origen
+     * superior izquierdo). Si la selección se cancela (rectángulo diminuto), se
+     * invoca con {@code null}.
+     */
+    public void beginRegionSelection(Consumer<PageRegion> onSelected) {
+        pendingSelection = onSelected;
+        scroll.setPannable(false);
+        scroll.setCursor(Cursor.CROSSHAIR);
+    }
+
+    private void finishSelection(PageRegion region) {
+        Consumer<PageRegion> callback = pendingSelection;
+        pendingSelection = null;
+        scroll.setPannable(true);
+        scroll.setCursor(Cursor.DEFAULT);
+        if (callback != null) {
+            callback.accept(region);
         }
-        return cells.get(index).localToScene(cells.get(index).getBoundsInLocal());
+    }
+
+    /** Región seleccionada en una página, en puntos PDF (origen superior izq.). */
+    public record PageRegion(int page, double x, double y, double width, double height) {
     }
 }

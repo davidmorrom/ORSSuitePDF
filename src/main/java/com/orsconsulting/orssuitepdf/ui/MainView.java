@@ -4,7 +4,10 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import com.orsconsulting.orssuitepdf.core.PdfDocument;
@@ -12,8 +15,13 @@ import com.orsconsulting.orssuitepdf.core.PdfOperations;
 import com.orsconsulting.orssuitepdf.core.StampService;
 import com.orsconsulting.orssuitepdf.ocr.OcrService;
 import com.orsconsulting.orssuitepdf.signing.PAdESSigner;
-import com.orsconsulting.orssuitepdf.signing.SignRequest;
 import com.orsconsulting.orssuitepdf.signing.SignResult;
+import com.orsconsulting.orssuitepdf.signing.SignSpec;
+import com.orsconsulting.orssuitepdf.signing.SigningTokens;
+import com.orsconsulting.orssuitepdf.signing.VisibleSignature;
+
+import eu.europa.esig.dss.token.DSSPrivateKeyEntry;
+import eu.europa.esig.dss.token.SignatureTokenConnection;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -22,6 +30,8 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
@@ -541,31 +551,121 @@ public final class MainView {
                     "Guarda los cambios del documento (Ctrl+S) antes de firmarlo.");
             return;
         }
-        Optional<SigningParams> params = askSigningParams();
-        if (params.isEmpty()) {
+        Optional<SigningOptions> options = askSigningOptions();
+        if (options.isEmpty()) {
             return;
         }
+        SigningOptions opts = options.get();
+
+        SignatureTokenConnection token;
+        try {
+            token = openToken(opts);
+        } catch (Exception ex) {
+            opts.wipeSecrets();
+            showError("No se pudo acceder al certificado", ex.getMessage());
+            return;
+        }
+
+        DSSPrivateKeyEntry key;
+        try {
+            List<DSSPrivateKeyEntry> keys = token.getKeys();
+            if (keys.isEmpty()) {
+                closeQuietly(token);
+                opts.wipeSecrets();
+                showError("Firmar", "No se encontró ningún certificado con clave privada.");
+                return;
+            }
+            key = keys.size() == 1 ? keys.get(0) : chooseKey(keys);
+            if (key == null) {
+                closeQuietly(token);
+                opts.wipeSecrets();
+                return;
+            }
+        } catch (Exception ex) {
+            closeQuietly(token);
+            opts.wipeSecrets();
+            showError("No se pudieron leer los certificados", ex.getMessage());
+            return;
+        }
+
         Path output = deriveSignedPath(source);
-        SigningParams p = params.get();
+        DSSPrivateKeyEntry chosenKey = key;
+
+        if (opts.visible()) {
+            statusLabel.setText("Dibuja el recuadro de la firma sobre la página…");
+            pdfView.beginRegionSelection(region -> {
+                if (region == null) {
+                    closeQuietly(token);
+                    opts.wipeSecrets();
+                    statusLabel.setText("Firma cancelada");
+                    return;
+                }
+                VisibleSignature visible = new VisibleSignature(region.page(),
+                        (float) region.x(), (float) region.y(),
+                        (float) region.width(), (float) region.height(), null);
+                runSign(token, chosenKey,
+                        new SignSpec(source, output, opts.tsaUrl(), opts.reason(), opts.location(), visible),
+                        opts);
+            });
+        } else {
+            runSign(token, chosenKey,
+                    new SignSpec(source, output, opts.tsaUrl(), opts.reason(), opts.location(), null),
+                    opts);
+        }
+    }
+
+    private SignatureTokenConnection openToken(SigningOptions opts) throws Exception {
+        return switch (opts.method()) {
+            case PKCS12 -> SigningTokens.pkcs12(Path.of(opts.certPath()), opts.password());
+            case WINDOWS -> SigningTokens.windowsStore();
+            case PKCS11 -> SigningTokens.pkcs11(Path.of(opts.driverPath()), opts.pin());
+        };
+    }
+
+    private void runSign(SignatureTokenConnection token, DSSPrivateKeyEntry key,
+                         SignSpec spec, SigningOptions opts) {
         statusLabel.setText("Firmando… (puede tardar si se contacta con el TSA)");
         runBackground(() -> {
             try {
-                SignRequest request = new SignRequest(source, output, p.keystore(),
-                        p.password(), p.tsaUrl(), p.reason(), p.location());
-                SignResult result = new PAdESSigner().sign(request);
+                SignResult result = new PAdESSigner().sign(token, key, spec);
                 Platform.runLater(() -> {
                     statusLabel.setText("Firmado (" + result.levelDescription() + "): "
-                            + output.getFileName());
+                            + spec.output().getFileName());
                     if (confirm("Firma completada",
                             "Documento firmado como " + result.levelDescription()
                                     + ".\n\n¿Abrir el documento firmado?")) {
-                        loadInBackground(output);
+                        loadInBackground(spec.output());
                     }
                 });
             } finally {
-                java.util.Arrays.fill(p.password(), '\0'); // no conservar la contraseña
+                closeQuietly(token);
+                opts.wipeSecrets();
             }
         }, "No se pudo firmar el documento");
+    }
+
+    private void closeQuietly(SignatureTokenConnection token) {
+        try {
+            token.close();
+        } catch (Exception ignored) {
+            // El cierre del token no debe enmascarar otros errores.
+        }
+    }
+
+    private DSSPrivateKeyEntry chooseKey(List<DSSPrivateKeyEntry> keys) {
+        Map<String, DSSPrivateKeyEntry> byLabel = new LinkedHashMap<>();
+        int i = 1;
+        for (DSSPrivateKeyEntry key : keys) {
+            byLabel.put((i++) + ". " + PAdESSigner.commonName(key), key);
+        }
+        List<String> labels = new ArrayList<>(byLabel.keySet());
+        ChoiceDialog<String> dialog = new ChoiceDialog<>(labels.get(0), labels);
+        dialog.setTitle("Seleccionar certificado");
+        dialog.setHeaderText("Elige el certificado con el que firmar");
+        dialog.setContentText("Certificado:");
+        dialog.initOwner(stage);
+        Optional<String> chosen = dialog.showAndWait();
+        return chosen.map(byLabel::get).orElse(null);
     }
 
     private Path deriveSignedPath(Path source) {
@@ -575,19 +675,23 @@ public final class MainView {
         return source.resolveSibling(base + "-firmado.pdf");
     }
 
-    private Optional<SigningParams> askSigningParams() {
-        Dialog<SigningParams> dialog = new Dialog<>();
+    private Optional<SigningOptions> askSigningOptions() {
+        Dialog<SigningOptions> dialog = new Dialog<>();
         dialog.setTitle("Firmar con certificado");
         dialog.setHeaderText("Firma digital PAdES");
         dialog.initOwner(stage);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
 
+        ComboBox<String> method = new ComboBox<>();
+        method.getItems().addAll("Archivo .p12/.pfx", "Almacén de Windows", "DNIe / tarjeta (PKCS#11)");
+        method.setValue("Archivo .p12/.pfx");
+        method.setMaxWidth(Double.MAX_VALUE);
+
         TextField certField = new TextField();
         certField.setEditable(false);
-        certField.setPrefColumnCount(28);
         certField.setPromptText("Selecciona un .p12/.pfx");
-        Button browse = new Button("Examinar…");
-        browse.setOnAction(e -> {
+        Button browseCert = new Button("Examinar…");
+        browseCert.setOnAction(e -> {
             FileChooser chooser = new FileChooser();
             chooser.setTitle("Seleccionar certificado");
             chooser.getExtensionFilters().add(
@@ -601,47 +705,106 @@ public final class MainView {
                 certField.setText(chosen.getAbsolutePath());
             }
         });
-        HBox certRow = new HBox(8, certField, browse);
-
+        HBox certRow = new HBox(8, certField, browseCert);
+        HBox.setHgrow(certField, Priority.ALWAYS);
         PasswordField passwordField = new PasswordField();
         passwordField.setPromptText("Contraseña del certificado");
+
+        TextField driverField = new TextField();
+        driverField.setPromptText("Ruta al módulo PKCS#11 (DLL del DNIe/lector)");
+        Button browseDriver = new Button("Examinar…");
+        browseDriver.setOnAction(e -> {
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle("Seleccionar módulo PKCS#11");
+            chooser.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter("Bibliotecas", "*.dll", "*.so", "*.dylib"));
+            File chosen = chooser.showOpenDialog(dialog.getOwner());
+            if (chosen != null) {
+                driverField.setText(chosen.getAbsolutePath());
+            }
+        });
+        HBox driverRow = new HBox(8, driverField, browseDriver);
+        HBox.setHgrow(driverField, Priority.ALWAYS);
+        PasswordField pinField = new PasswordField();
+        pinField.setPromptText("PIN de la tarjeta / DNIe");
+
         TextField tsaField = new TextField("https://freetsa.org/tsr");
         tsaField.setPromptText("URL de TSA (vacío = sin sello de tiempo)");
         TextField reasonField = new TextField();
         reasonField.setPromptText("Motivo (opcional)");
         TextField locationField = new TextField();
         locationField.setPromptText("Lugar (opcional)");
+        CheckBox visibleBox = new CheckBox("Firma visible en el documento (seleccionar recuadro)");
+
+        Label certLabel = new Label("Certificado:");
+        Label pwdLabel = new Label("Contraseña:");
+        Label driverLabel = new Label("Módulo:");
+        Label pinLabel = new Label("PIN:");
 
         GridPane grid = new GridPane();
         grid.setHgap(10);
         grid.setVgap(10);
         grid.setPadding(new Insets(16));
-        grid.add(new Label("Certificado:"), 0, 0);
-        grid.add(certRow, 1, 0);
-        grid.add(new Label("Contraseña:"), 0, 1);
-        grid.add(passwordField, 1, 1);
-        grid.add(new Label("TSA:"), 0, 2);
-        grid.add(tsaField, 1, 2);
-        grid.add(new Label("Motivo:"), 0, 3);
-        grid.add(reasonField, 1, 3);
-        grid.add(new Label("Lugar:"), 0, 4);
-        grid.add(locationField, 1, 4);
+        grid.add(new Label("Método:"), 0, 0);
+        grid.add(method, 1, 0);
+        grid.add(certLabel, 0, 1);
+        grid.add(certRow, 1, 1);
+        grid.add(pwdLabel, 0, 2);
+        grid.add(passwordField, 1, 2);
+        grid.add(driverLabel, 0, 3);
+        grid.add(driverRow, 1, 3);
+        grid.add(pinLabel, 0, 4);
+        grid.add(pinField, 1, 4);
+        grid.add(new Label("TSA:"), 0, 5);
+        grid.add(tsaField, 1, 5);
+        grid.add(new Label("Motivo:"), 0, 6);
+        grid.add(reasonField, 1, 6);
+        grid.add(new Label("Lugar:"), 0, 7);
+        grid.add(locationField, 1, 7);
+        grid.add(visibleBox, 1, 8);
         dialog.getDialogPane().setContent(grid);
 
+        Runnable updateVisibility = () -> {
+            boolean p12 = method.getValue().startsWith("Archivo");
+            boolean pkcs11 = method.getValue().startsWith("DNIe");
+            setRowVisible(certLabel, certRow, p12);
+            setRowVisible(pwdLabel, passwordField, p12);
+            setRowVisible(driverLabel, driverRow, pkcs11);
+            setRowVisible(pinLabel, pinField, pkcs11);
+        };
+        method.valueProperty().addListener((o, a, b) -> updateVisibility.run());
+        updateVisibility.run();
+
         dialog.setResultConverter(button -> {
-            if (button == ButtonType.OK
-                    && !certField.getText().isBlank()
-                    && !passwordField.getText().isEmpty()) {
-                return new SigningParams(
-                        Path.of(certField.getText()),
-                        passwordField.getText().toCharArray(),
-                        tsaField.getText(),
-                        reasonField.getText(),
-                        locationField.getText());
+            if (button != ButtonType.OK) {
+                return null;
             }
-            return null;
+            SigningMethod selected = switch (method.getValue()) {
+                case "Almacén de Windows" -> SigningMethod.WINDOWS;
+                case "DNIe / tarjeta (PKCS#11)" -> SigningMethod.PKCS11;
+                default -> SigningMethod.PKCS12;
+            };
+            if (selected == SigningMethod.PKCS12
+                    && (certField.getText().isBlank() || passwordField.getText().isEmpty())) {
+                return null;
+            }
+            if (selected == SigningMethod.PKCS11 && driverField.getText().isBlank()) {
+                return null;
+            }
+            return new SigningOptions(selected,
+                    certField.getText(), passwordField.getText().toCharArray(),
+                    driverField.getText(), pinField.getText().toCharArray(),
+                    tsaField.getText(), reasonField.getText(), locationField.getText(),
+                    visibleBox.isSelected());
         });
         return dialog.showAndWait();
+    }
+
+    private void setRowVisible(Label label, javafx.scene.Node field, boolean visible) {
+        label.setVisible(visible);
+        label.setManaged(visible);
+        field.setVisible(visible);
+        field.setManaged(visible);
     }
 
     // ------------------------------------------------- operaciones de página
@@ -903,8 +1066,22 @@ public final class MainView {
     private record TextContent(String text, int fontSize, String corner) {
     }
 
-    /** Parámetros recogidos en el diálogo de firma. */
-    private record SigningParams(Path keystore, char[] password, String tsaUrl,
-                                 String reason, String location) {
+    /** Origen del certificado para firmar. */
+    private enum SigningMethod { PKCS12, WINDOWS, PKCS11 }
+
+    /** Opciones recogidas en el diálogo de firma. */
+    private record SigningOptions(SigningMethod method, String certPath, char[] password,
+                                  String driverPath, char[] pin, String tsaUrl,
+                                  String reason, String location, boolean visible) {
+
+        /** Borra de memoria los secretos (contraseña/PIN) tras su uso. */
+        void wipeSecrets() {
+            if (password != null) {
+                java.util.Arrays.fill(password, '\0');
+            }
+            if (pin != null) {
+                java.util.Arrays.fill(pin, '\0');
+            }
+        }
     }
 }
