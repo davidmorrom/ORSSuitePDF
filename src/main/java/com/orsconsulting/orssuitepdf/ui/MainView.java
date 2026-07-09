@@ -11,6 +11,9 @@ import com.orsconsulting.orssuitepdf.core.PdfDocument;
 import com.orsconsulting.orssuitepdf.core.PdfOperations;
 import com.orsconsulting.orssuitepdf.core.StampService;
 import com.orsconsulting.orssuitepdf.ocr.OcrService;
+import com.orsconsulting.orssuitepdf.signing.PAdESSigner;
+import com.orsconsulting.orssuitepdf.signing.SignRequest;
+import com.orsconsulting.orssuitepdf.signing.SignResult;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -23,6 +26,7 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
+import javafx.scene.control.PasswordField;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.Separator;
@@ -176,12 +180,17 @@ public final class MainView {
         ocr.setOnAction(e -> ocrCurrentPage());
         tools.getItems().add(ocr);
 
+        Menu sign = new Menu("Firma");
+        MenuItem signItem = new MenuItem("Firmar con certificado…");
+        signItem.setOnAction(e -> signDocument());
+        sign.getItems().add(signItem);
+
         Menu help = new Menu("Ayuda");
         MenuItem about = new MenuItem("Acerca de ORS Suite PDF");
         about.setOnAction(e -> showAbout());
         help.getItems().add(about);
 
-        return new MenuBar(file, page, insert, tools, help);
+        return new MenuBar(file, page, insert, tools, sign, help);
     }
 
     private ToolBar buildToolBar() {
@@ -515,6 +524,121 @@ public final class MainView {
         dialog.showAndWait();
     }
 
+    // ------------------------------------------------------------- firma
+
+    private void signDocument() {
+        if (!state.hasDocument()) {
+            return;
+        }
+        Path source = state.getDocument().source();
+        if (source == null || state.isDirty()) {
+            showError("Firmar documento",
+                    "Guarda los cambios del documento (Ctrl+S) antes de firmarlo.");
+            return;
+        }
+        Optional<SigningParams> params = askSigningParams();
+        if (params.isEmpty()) {
+            return;
+        }
+        Path output = deriveSignedPath(source);
+        SigningParams p = params.get();
+        statusLabel.setText("Firmando… (puede tardar si se contacta con el TSA)");
+        runBackground(() -> {
+            try {
+                SignRequest request = new SignRequest(source, output, p.keystore(),
+                        p.password(), p.tsaUrl(), p.reason(), p.location());
+                SignResult result = new PAdESSigner().sign(request);
+                Platform.runLater(() -> {
+                    statusLabel.setText("Firmado (" + result.levelDescription() + "): "
+                            + output.getFileName());
+                    if (confirm("Firma completada",
+                            "Documento firmado como " + result.levelDescription()
+                                    + ".\n\n¿Abrir el documento firmado?")) {
+                        loadInBackground(output);
+                    }
+                });
+            } finally {
+                java.util.Arrays.fill(p.password(), '\0'); // no conservar la contraseña
+            }
+        }, "No se pudo firmar el documento");
+    }
+
+    private Path deriveSignedPath(Path source) {
+        String name = source.getFileName().toString();
+        String base = name.toLowerCase().endsWith(".pdf")
+                ? name.substring(0, name.length() - 4) : name;
+        return source.resolveSibling(base + "-firmado.pdf");
+    }
+
+    private Optional<SigningParams> askSigningParams() {
+        Dialog<SigningParams> dialog = new Dialog<>();
+        dialog.setTitle("Firmar con certificado");
+        dialog.setHeaderText("Firma digital PAdES");
+        dialog.initOwner(stage);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        TextField certField = new TextField();
+        certField.setEditable(false);
+        certField.setPrefColumnCount(28);
+        certField.setPromptText("Selecciona un .p12/.pfx");
+        Button browse = new Button("Examinar…");
+        browse.setOnAction(e -> {
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle("Seleccionar certificado");
+            chooser.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter("Certificados PKCS#12", "*.p12", "*.pfx"));
+            File defaultDir = new File("CERTIFICADO PERSONAL (MUY CONFIDENCIAL)");
+            if (defaultDir.isDirectory()) {
+                chooser.setInitialDirectory(defaultDir);
+            }
+            File chosen = chooser.showOpenDialog(dialog.getOwner());
+            if (chosen != null) {
+                certField.setText(chosen.getAbsolutePath());
+            }
+        });
+        HBox certRow = new HBox(8, certField, browse);
+
+        PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText("Contraseña del certificado");
+        TextField tsaField = new TextField("https://freetsa.org/tsr");
+        tsaField.setPromptText("URL de TSA (vacío = sin sello de tiempo)");
+        TextField reasonField = new TextField();
+        reasonField.setPromptText("Motivo (opcional)");
+        TextField locationField = new TextField();
+        locationField.setPromptText("Lugar (opcional)");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(16));
+        grid.add(new Label("Certificado:"), 0, 0);
+        grid.add(certRow, 1, 0);
+        grid.add(new Label("Contraseña:"), 0, 1);
+        grid.add(passwordField, 1, 1);
+        grid.add(new Label("TSA:"), 0, 2);
+        grid.add(tsaField, 1, 2);
+        grid.add(new Label("Motivo:"), 0, 3);
+        grid.add(reasonField, 1, 3);
+        grid.add(new Label("Lugar:"), 0, 4);
+        grid.add(locationField, 1, 4);
+        dialog.getDialogPane().setContent(grid);
+
+        dialog.setResultConverter(button -> {
+            if (button == ButtonType.OK
+                    && !certField.getText().isBlank()
+                    && !passwordField.getText().isEmpty()) {
+                return new SigningParams(
+                        Path.of(certField.getText()),
+                        passwordField.getText().toCharArray(),
+                        tsaField.getText(),
+                        reasonField.getText(),
+                        locationField.getText());
+            }
+            return null;
+        });
+        return dialog.showAndWait();
+    }
+
     // ------------------------------------------------- operaciones de página
 
     private void rotateCurrent(int degrees) {
@@ -772,5 +896,10 @@ public final class MainView {
 
     /** Resultado del diálogo de inserción de texto: contenido, tamaño y esquina. */
     private record TextContent(String text, int fontSize, String corner) {
+    }
+
+    /** Parámetros recogidos en el diálogo de firma. */
+    private record SigningParams(Path keystore, char[] password, String tsaUrl,
+                                 String reason, String location) {
     }
 }
