@@ -18,6 +18,7 @@ import com.orsconsulting.orssuitepdf.core.PdfDocument;
 import com.orsconsulting.orssuitepdf.core.PdfOperations;
 import com.orsconsulting.orssuitepdf.core.RedactionService;
 import com.orsconsulting.orssuitepdf.core.SearchService;
+import com.orsconsulting.orssuitepdf.core.SecurityService;
 import com.orsconsulting.orssuitepdf.core.StampService;
 import com.orsconsulting.orssuitepdf.ocr.OcrService;
 import com.orsconsulting.orssuitepdf.signing.PAdESSigner;
@@ -48,6 +49,7 @@ import javafx.scene.control.ListView;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.PasswordField;
 import javafx.scene.control.Separator;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.Spinner;
@@ -225,7 +227,11 @@ public final class MainView {
         MenuItem find = new MenuItem("Buscar…");
         find.setAccelerator(new KeyCharacterCombination("F", KeyCombination.SHORTCUT_DOWN));
         find.setOnAction(e -> toggleSearch());
-        tools.getItems().addAll(ocr, redact, find);
+        MenuItem protect = new MenuItem("Proteger con contraseña…");
+        protect.setOnAction(e -> protectDocument());
+        MenuItem unprotect = new MenuItem("Quitar protección");
+        unprotect.setOnAction(e -> unprotectDocument());
+        tools.getItems().addAll(ocr, redact, find, new SeparatorMenuItem(), protect, unprotect);
 
         Menu sign = new Menu("Firma");
         MenuItem signItem = new MenuItem("Firmar con certificado…");
@@ -460,19 +466,81 @@ public final class MainView {
 
     /** Abre el documento en una pestaña nueva. */
     private void loadInBackground(Path path) {
+        loadInBackground(path, null);
+    }
+
+    private void loadInBackground(Path path, String password) {
         statusLabel.setText("Abriendo " + path.getFileName() + "…");
         runBackground(() -> {
-            PdfDocument doc = PdfDocument.open(path);
+            PdfDocument doc;
+            try {
+                doc = password == null ? PdfDocument.open(path) : PdfDocument.open(path, password);
+            } catch (org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException badPassword) {
+                Platform.runLater(() -> {
+                    Optional<String> pwd = askPassword("Documento protegido",
+                            "Introduce la contraseña de " + path.getFileName() + ":");
+                    if (pwd.isPresent() && !pwd.get().isEmpty()) {
+                        loadInBackground(path, pwd.get());
+                    } else {
+                        statusLabel.setText("Apertura cancelada");
+                    }
+                });
+                return;
+            }
+            PdfDocument opened = doc;
             Platform.runLater(() -> {
                 DocumentSession session = new DocumentSession();
-                session.state.setDocument(doc);
+                session.state.setDocument(opened);
                 sessions.put(session.tab, session);
                 updateTabTitle(session);
                 documentsPane.getTabs().add(session.tab);
                 documentsPane.getSelectionModel().select(session.tab);
-                statusLabel.setText(path.getFileName() + "  ·  " + doc.pageCount() + " páginas");
+                statusLabel.setText(path.getFileName() + "  ·  " + opened.pageCount() + " páginas");
             });
         }, "No se pudo abrir el PDF");
+    }
+
+    private void protectDocument() {
+        if (!state.hasDocument()) {
+            return;
+        }
+        Optional<String> password = askPassword("Proteger con contraseña",
+                "Contraseña necesaria para abrir el documento:");
+        if (password.isEmpty() || password.get().isEmpty()) {
+            return;
+        }
+        try {
+            SecurityService.protect(state.getDocument(), password.get());
+            state.markMutated();
+            statusLabel.setText("Protección aplicada — se cifrará al guardar");
+        } catch (Exception ex) {
+            showError("No se pudo proteger", ex.getMessage());
+        }
+    }
+
+    private void unprotectDocument() {
+        if (!state.hasDocument()) {
+            return;
+        }
+        SecurityService.removeProtection(state.getDocument());
+        state.markMutated();
+        statusLabel.setText("Se quitará la protección al guardar");
+    }
+
+    private Optional<String> askPassword(String title, String header) {
+        Dialog<String> dialog = new Dialog<>();
+        dialog.setTitle(title);
+        dialog.setHeaderText(header);
+        dialog.initOwner(stage);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        PasswordField field = new PasswordField();
+        field.setPromptText("Contraseña");
+        HBox box = new HBox(field);
+        box.setPadding(new Insets(16));
+        dialog.getDialogPane().setContent(box);
+        Platform.runLater(field::requestFocus);
+        dialog.setResultConverter(b -> b == ButtonType.OK ? field.getText() : null);
+        return dialog.showAndWait();
     }
 
     private void save() {

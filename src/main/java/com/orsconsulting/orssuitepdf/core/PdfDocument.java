@@ -42,6 +42,12 @@ public final class PdfDocument implements Closeable {
         return new PdfDocument(doc, file);
     }
 
+    /** Abre un PDF protegido con contraseña. */
+    public static PdfDocument open(Path file, String password) throws IOException {
+        PDDocument doc = Loader.loadPDF(file.toFile(), password);
+        return new PdfDocument(doc, file);
+    }
+
     /** Abre un PDF desde disco, envolviendo el {@link File}. */
     public static PdfDocument open(File file) throws IOException {
         return open(file.toPath());
