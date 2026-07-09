@@ -16,6 +16,7 @@
         <pdfbox.version>3.0.2</pdfbox.version>
         <atlantafx.version>2.0.1</atlantafx.version>
         <tess4j.version>5.11.0</tess4j.version>
+        <dss.version>6.1</dss.version>
         <junit.version>5.10.2</junit.version>
         <!-- Clase JavaFX (Application) para ejecución en desarrollo con
              javafx:run, y lanzadora sin Application para el fat jar / jpackage. -->
@@ -65,6 +66,37 @@
             <version>${tess4j.version}</version>
         </dependency>
 
+        <!-- Firma digital PAdES (DSS, Comisión Europea). dss-pades-pdfbox
+             implementa PAdES sobre PDFBox; dss-service aporta las fuentes
+             online (TSA/OCSP/CRL); dss-token, la conexión al .p12;
+             dss-utils-apache-commons y dss-crl-parser-x509crl son las
+             implementaciones de utilidades y parseo de CRL requeridas. -->
+        <dependency>
+            <groupId>eu.europa.ec.joinup.sd-dss</groupId>
+            <artifactId>dss-pades-pdfbox</artifactId>
+            <version>${dss.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>eu.europa.ec.joinup.sd-dss</groupId>
+            <artifactId>dss-service</artifactId>
+            <version>${dss.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>eu.europa.ec.joinup.sd-dss</groupId>
+            <artifactId>dss-token</artifactId>
+            <version>${dss.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>eu.europa.ec.joinup.sd-dss</groupId>
+            <artifactId>dss-utils-apache-commons</artifactId>
+            <version>${dss.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>eu.europa.ec.joinup.sd-dss</groupId>
+            <artifactId>dss-crl-parser-x509crl</artifactId>
+            <version>${dss.version}</version>
+        </dependency>
+
         <!-- Tests -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -73,6 +105,22 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <repositories>
+        <!-- DSS no se publica en Maven Central; se aloja en el repositorio
+             de la Comisión Europea (Digital Building Blocks). -->
+        <repository>
+            <id>cefdigital</id>
+            <name>Comisión Europea — DSS</name>
+            <url>https://ec.europa.eu/digital-building-blocks/artifact/repository/esignaturedss/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
 
     <build>
         <plugins>
