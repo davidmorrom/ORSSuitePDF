@@ -32,3 +32,13 @@ build/*.exe
 build/*.msi
 build/*.dmg
 build/*.deb
+
+# NUNCA versionar material criptográfico ni la carpeta del certificado
+# personal. Estos patrones son una red de seguridad global.
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.key
+CERTIFICADO PERSONAL (MUY CONFIDENCIAL)/
+CERTIFICADO PERSONAL (MUY CONFIDENCIAL)/SDC_1_2_18_A_MORENO_ROMERO_DAVID___70848485K.p12
