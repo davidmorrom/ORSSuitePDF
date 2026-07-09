@@ -66,6 +66,7 @@ public final class PdfView extends StackPane {
         state.documentProperty().addListener((obs, oldDoc, newDoc) -> requestRender());
         state.currentPageProperty().addListener((obs, oldP, newP) -> requestRender());
         state.zoomProperty().addListener((obs, oldZ, newZ) -> requestRender());
+        state.revisionProperty().addListener((obs, oldR, newR) -> requestRender());
     }
 
     /** Fuerza un nuevo renderizado de la página actual. */

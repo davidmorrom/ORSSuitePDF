@@ -2,9 +2,11 @@ package com.orsconsulting.orssuitepdf.ui;
 
 import com.orsconsulting.orssuitepdf.core.PdfDocument;
 
+import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.ObjectProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleObjectProperty;
@@ -23,6 +25,17 @@ public final class AppState {
     private final ObjectProperty<PdfDocument> document = new SimpleObjectProperty<>(this, "document");
     private final IntegerProperty currentPage = new SimpleIntegerProperty(this, "currentPage", 0);
     private final DoubleProperty zoom = new SimpleDoubleProperty(this, "zoom", 1.0);
+
+    /**
+     * Contador que se incrementa cada vez que el documento se modifica "in
+     * situ" (rotar, borrar, mover páginas). Como esas operaciones mutan el
+     * mismo objeto {@link PdfDocument}, no disparan {@link #documentProperty},
+     * así que la UI observa esta propiedad para re-renderizar y refrescarse.
+     */
+    private final IntegerProperty revision = new SimpleIntegerProperty(this, "revision", 0);
+
+    /** Indica si hay cambios sin guardar en el documento abierto. */
+    private final BooleanProperty dirty = new SimpleBooleanProperty(this, "dirty", false);
 
     public ObjectProperty<PdfDocument> documentProperty() {
         return document;
@@ -46,7 +59,40 @@ public final class AppState {
             }
         }
         currentPage.set(0);
+        dirty.set(false);
         document.set(doc);
+    }
+
+    public IntegerProperty revisionProperty() {
+        return revision;
+    }
+
+    /**
+     * Señala que el documento se ha modificado en memoria: marca el estado
+     * como "sucio", ajusta la página actual al nuevo rango y notifica a la UI.
+     */
+    public void markMutated() {
+        dirty.set(true);
+        PdfDocument doc = document.get();
+        if (doc != null) {
+            int last = Math.max(0, doc.pageCount() - 1);
+            if (currentPage.get() > last) {
+                currentPage.set(last);
+            }
+        }
+        revision.set(revision.get() + 1);
+    }
+
+    public BooleanProperty dirtyProperty() {
+        return dirty;
+    }
+
+    public boolean isDirty() {
+        return dirty.get();
+    }
+
+    public void setDirty(boolean value) {
+        dirty.set(value);
     }
 
     public boolean hasDocument() {
