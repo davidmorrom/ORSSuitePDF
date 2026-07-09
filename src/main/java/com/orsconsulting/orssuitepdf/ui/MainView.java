@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.prefs.Preferences;
 
 import com.orsconsulting.orssuitepdf.core.ExportService;
 import com.orsconsulting.orssuitepdf.core.PdfDocument;
@@ -65,6 +66,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.util.Pair;
@@ -259,6 +261,73 @@ public final class MainView {
         return bar;
     }
 
+    // ------------------------------------------------ diálogos de archivo
+
+    private static final String PREF_LAST_DIR = "lastDirectory";
+    private final Preferences prefs = Preferences.userNodeForPackage(MainView.class);
+
+    private File lastDirectory() {
+        String path = prefs.get(PREF_LAST_DIR, null);
+        if (path == null) {
+            return null;
+        }
+        File dir = new File(path);
+        return dir.isDirectory() ? dir : null;
+    }
+
+    private void rememberDirectory(File dir) {
+        if (dir != null && dir.isDirectory()) {
+            prefs.put(PREF_LAST_DIR, dir.getAbsolutePath());
+        }
+    }
+
+    /** Aplica la última carpeta recordada salvo que ya se haya fijado una. */
+    private void applyLastDirectory(FileChooser chooser) {
+        File dir = lastDirectory();
+        if (dir != null && chooser.getInitialDirectory() == null) {
+            chooser.setInitialDirectory(dir);
+        }
+    }
+
+    private File showOpen(FileChooser chooser) {
+        applyLastDirectory(chooser);
+        File file = showOpen(chooser);
+        if (file != null) {
+            rememberDirectory(file.getParentFile());
+        }
+        return file;
+    }
+
+    private List<File> showOpenMultiple(FileChooser chooser) {
+        applyLastDirectory(chooser);
+        List<File> files = showOpenMultiple(chooser);
+        if (files != null && !files.isEmpty()) {
+            rememberDirectory(files.get(0).getParentFile());
+        }
+        return files;
+    }
+
+    private File showSave(FileChooser chooser) {
+        applyLastDirectory(chooser);
+        File file = showSave(chooser);
+        if (file != null) {
+            rememberDirectory(file.getParentFile());
+        }
+        return file;
+    }
+
+    private File showDir(DirectoryChooser chooser) {
+        File dir = lastDirectory();
+        if (dir != null && chooser.getInitialDirectory() == null) {
+            chooser.setInitialDirectory(dir);
+        }
+        File chosen = showDir(chooser);
+        if (chosen != null) {
+            rememberDirectory(chosen);
+        }
+        return chosen;
+    }
+
     // ----------------------------------------------------- apertura/guardado
 
     private void openDocument() {
@@ -266,7 +335,7 @@ public final class MainView {
         chooser.setTitle("Abrir PDF");
         chooser.getExtensionFilters().add(
                 new FileChooser.ExtensionFilter("Documentos PDF", "*.pdf"));
-        File selected = chooser.showOpenDialog(stage);
+        File selected = showOpen(chooser);
         if (selected == null) {
             return;
         }
@@ -320,7 +389,7 @@ public final class MainView {
             chooser.setInitialDirectory(source.getParent().toFile());
             chooser.setInitialFileName(source.getFileName().toString());
         }
-        File target = chooser.showSaveDialog(stage);
+        File target = showSave(chooser);
         if (target != null) {
             saveToInBackground(target.toPath());
         }
@@ -373,7 +442,7 @@ public final class MainView {
         saveChooser.getExtensionFilters().add(
                 new FileChooser.ExtensionFilter("Documentos PDF", "*.pdf"));
         saveChooser.setInitialFileName("unido.pdf");
-        File output = saveChooser.showSaveDialog(stage);
+        File output = showSave(saveChooser);
         if (output == null) {
             return;
         }
@@ -394,7 +463,7 @@ public final class MainView {
         chooser.setTitle(title);
         chooser.getExtensionFilters().add(
                 new FileChooser.ExtensionFilter("Documentos PDF", "*.pdf"));
-        return chooser.showOpenMultipleDialog(stage);
+        return showOpenMultiple(chooser);
     }
 
     /** Pantalla de revisión: reordenar, quitar o añadir documentos a unir. */
@@ -497,7 +566,7 @@ public final class MainView {
         chooser.getExtensionFilters().add(
                 new FileChooser.ExtensionFilter("Documentos PDF", "*.pdf"));
         chooser.setInitialFileName("extracto.pdf");
-        File output = chooser.showSaveDialog(stage);
+        File output = showSave(chooser);
         if (output == null) {
             return;
         }
@@ -518,7 +587,7 @@ public final class MainView {
         chooser.setTitle("Seleccionar imagen o sello");
         chooser.getExtensionFilters().add(
                 new FileChooser.ExtensionFilter("Imágenes", "*.png", "*.jpg", "*.jpeg"));
-        File imageFile = chooser.showOpenDialog(stage);
+        File imageFile = showOpen(chooser);
         if (imageFile == null) {
             return;
         }
@@ -682,7 +751,7 @@ public final class MainView {
         chooser.setTitle("Exportar a texto");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Texto", "*.txt"));
         chooser.setInitialFileName(baseName() + ".txt");
-        File target = chooser.showSaveDialog(stage);
+        File target = showSave(chooser);
         if (target == null) {
             return;
         }
@@ -698,9 +767,9 @@ public final class MainView {
         if (!state.hasDocument()) {
             return;
         }
-        javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
+        DirectoryChooser chooser = new DirectoryChooser();
         chooser.setTitle("Carpeta para las imágenes");
-        File dir = chooser.showDialog(stage);
+        File dir = showDir(chooser);
         if (dir == null) {
             return;
         }
@@ -722,10 +791,10 @@ public final class MainView {
             showError("Exportar", "Guarda el documento antes de convertirlo a " + format + ".");
             return;
         }
-        javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
+        DirectoryChooser chooser = new DirectoryChooser();
         chooser.setTitle("Carpeta de destino");
         chooser.setInitialDirectory(source.getParent().toFile());
-        File dir = chooser.showDialog(stage);
+        File dir = showDir(chooser);
         if (dir == null) {
             return;
         }
