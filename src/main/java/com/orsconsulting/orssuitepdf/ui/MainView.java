@@ -104,6 +104,8 @@ public final class MainView {
     private final Label zoomLabel = new Label("100 %");
     private final Label statusLabel = new Label("Listo");
 
+    private final Menu recentMenu = new Menu("Abrir reciente");
+
     private HBox searchBar;
     private TextField searchField;
     private final Label searchCount = new Label("0/0");
@@ -137,6 +139,28 @@ public final class MainView {
             }
         });
 
+        // Arrastrar y soltar PDF sobre la ventana para abrirlos.
+        root.setOnDragOver(event -> {
+            if (event.getDragboard().hasFiles()) {
+                event.acceptTransferModes(javafx.scene.input.TransferMode.COPY);
+            }
+            event.consume();
+        });
+        root.setOnDragDropped(event -> {
+            var dragboard = event.getDragboard();
+            boolean done = false;
+            if (dragboard.hasFiles()) {
+                for (File file : dragboard.getFiles()) {
+                    if (file.getName().toLowerCase().endsWith(".pdf")) {
+                        loadInBackground(file.toPath());
+                        done = true;
+                    }
+                }
+            }
+            event.setDropCompleted(done);
+            event.consume();
+        });
+
         refreshControls();
         updateTitle();
     }
@@ -164,6 +188,7 @@ public final class MainView {
         MenuItem open = new MenuItem("Abrir…");
         open.setAccelerator(new KeyCharacterCombination("O", KeyCombination.SHORTCUT_DOWN));
         open.setOnAction(e -> openDocument());
+        refreshRecentMenu();
         MenuItem save = new MenuItem("Guardar");
         save.setAccelerator(new KeyCharacterCombination("S", KeyCombination.SHORTCUT_DOWN));
         save.setOnAction(e -> save());
@@ -181,7 +206,7 @@ public final class MainView {
                 Platform.exit();
             }
         });
-        file.getItems().addAll(open, save, saveAs, new SeparatorMenuItem(),
+        file.getItems().addAll(open, recentMenu, save, saveAs, new SeparatorMenuItem(),
                 merge, print, export, new SeparatorMenuItem(), exit);
 
         Menu page = new Menu("Página");
@@ -398,6 +423,58 @@ public final class MainView {
         }
     }
 
+    private static final String PREF_RECENT = "recentFiles";
+    private static final int MAX_RECENT = 8;
+
+    private List<String> recentFiles() {
+        String stored = prefs.get(PREF_RECENT, "");
+        List<String> list = new ArrayList<>();
+        for (String line : stored.split("\n")) {
+            if (!line.isBlank()) {
+                list.add(line);
+            }
+        }
+        return list;
+    }
+
+    private void addRecent(Path path) {
+        String abs = path.toAbsolutePath().toString();
+        List<String> list = recentFiles();
+        list.remove(abs);
+        list.add(0, abs);
+        while (list.size() > MAX_RECENT) {
+            list.remove(list.size() - 1);
+        }
+        prefs.put(PREF_RECENT, String.join("\n", list));
+        refreshRecentMenu();
+    }
+
+    private void refreshRecentMenu() {
+        recentMenu.getItems().clear();
+        List<String> list = recentFiles();
+        recentMenu.setDisable(list.isEmpty());
+        for (String pathString : list) {
+            Path path = Path.of(pathString);
+            MenuItem item = new MenuItem(path.getFileName().toString());
+            item.setOnAction(e -> {
+                if (java.nio.file.Files.exists(path)) {
+                    loadInBackground(path);
+                } else {
+                    showError("Abrir reciente", "El archivo ya no existe:\n" + pathString);
+                }
+            });
+            recentMenu.getItems().add(item);
+        }
+        if (!list.isEmpty()) {
+            MenuItem clear = new MenuItem("Vaciar lista");
+            clear.setOnAction(e -> {
+                prefs.remove(PREF_RECENT);
+                refreshRecentMenu();
+            });
+            recentMenu.getItems().addAll(new SeparatorMenuItem(), clear);
+        }
+    }
+
     /** Aplica la última carpeta recordada salvo que ya se haya fijado una. */
     private void applyLastDirectory(FileChooser chooser) {
         File dir = lastDirectory();
@@ -495,6 +572,7 @@ public final class MainView {
                 updateTabTitle(session);
                 documentsPane.getTabs().add(session.tab);
                 documentsPane.getSelectionModel().select(session.tab);
+                addRecent(path);
                 statusLabel.setText(path.getFileName() + "  ·  " + opened.pageCount() + " páginas");
             });
         }, "No se pudo abrir el PDF");
