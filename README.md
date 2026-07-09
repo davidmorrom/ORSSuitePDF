@@ -35,6 +35,21 @@ desarrollar ni usar la app.
 ./mvnw test                 # ejecuta las pruebas
 ```
 
+## OCR (datos de idioma)
+El OCR usa Tesseract a través de Tess4J, cuyos binarios nativos ya van
+incluidos: **no hace falta instalar Tesseract**. Solo se necesitan los datos
+de idioma (`*.traineddata`), que no se versionan por tamaño. Descárgalos una
+vez en la carpeta `tessdata/` (o apunta la variable `TESSDATA_PREFIX` a otra):
+```
+mkdir tessdata
+curl -L --ssl-no-revoke -o tessdata/eng.traineddata \
+  https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata
+curl -L --ssl-no-revoke -o tessdata/spa.traineddata \
+  https://github.com/tesseract-ocr/tessdata_fast/raw/main/spa.traineddata
+```
+Es una descarga única de configuración; el reconocimiento funciona sin
+conexión. Al empaquetar, incluye la carpeta `tessdata/` junto a la app.
+
 ## Empaquetado
 
 Primero se genera el JAR con dependencias (fat jar). Su clase principal es
@@ -89,10 +104,8 @@ Ver las decisiones de arquitectura documentadas en `docs/adr/`.
    páginas y editor de marcadores (PDFBox + JavaFX)
 2. ✅ Formularios (AcroForms): leer/rellenar/aplanar campos + inserción de
    imagen/sello visual sobre la página
-3. ⬜ OCR + edición de texto básica (Tess4J + PDFBox)
+3. ✅ OCR de páginas (Tess4J, offline) + inserción de texto sobre la página
 4. ⬜ Firma PAdES con fallback offline (DSS)
 5. ⬜ Empaquetado a instalador (.exe/.dmg/.deb) con jpackage
 
-Las fases 2–4 reincorporarán las dependencias de firma (DSS) y OCR
-(Tess4J) cuando se aborden; el MVP solo depende de JavaFX, AtlantaFX y
-PDFBox.
+La fase 4 reincorporará la dependencia de firma (DSS) cuando se aborde.
