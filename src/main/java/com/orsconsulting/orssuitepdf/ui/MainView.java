@@ -63,20 +63,17 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.Separator;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.Spinner;
-import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
-import javafx.scene.control.ToolBar;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.KeyCharacterCombination;
-import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
@@ -91,10 +88,11 @@ import javafx.stage.Stage;
 import javafx.util.Pair;
 
 /**
- * Ventana principal de la aplicación. Compone la barra de menús, la barra de
- * herramientas (apertura, guardado, navegación, operaciones de página y
- * zoom), el visor central y la barra de estado, y conecta todo con
- * {@link AppState}.
+ * Ventana principal de la aplicación, según el lenguaje visual «Cobalto
+ * flotante»: barra superior unificada (marca, chips de documento, control
+ * segmentado de secciones y búsqueda), fila de comandos silenciosa y lienzo
+ * redondeado sobre el que flotan el panel de miniaturas, el riel de
+ * herramientas y la píldora de navegación. Conecta todo con {@link AppState}.
  */
 public final class MainView {
 
@@ -115,22 +113,24 @@ public final class MainView {
 
     private final Label pageLabel = new Label("—");
     private final Label zoomLabel = new Label("100 %");
-    private final Label statusLabel = new Label("Listo");
+    private final Label statusLabel = new Label("");
 
     private final MenuButton recentButton = new MenuButton("Recientes", FontIcon.of(Feather.CLOCK));
 
     private Button themeButton;
+    private StackPane markHolder;
+    private Label appNameLabel;
+    /** Chips de documento de la barra superior (uno por pestaña). */
+    private final HBox docChips = new HBox(8);
+    private final Map<String, ToggleButton> segButtons = new LinkedHashMap<>();
 
-    /** Barra de herramientas contextual: su contenido cambia con la sección. */
-    private final ToolBar contextBar = new ToolBar();
-    /** Botones de cada sección del riel, creados una vez y reutilizados. */
+    /** Fila de comandos: su contenido cambia con la sección del segmentado. */
+    private final HBox sectionBox = new HBox(2);
+    /** Botones de cada sección, creados una vez y reutilizados. */
     private final Map<String, List<javafx.scene.Node>> sectionItems = new LinkedHashMap<>();
+    private Label savedIndicator;
 
-    private HBox searchBar;
-    private TextField searchField;
-    private final Label searchCount = new Label("0/0");
-    private List<SearchService.Match> searchResults = new ArrayList<>();
-    private int searchIndex;
+    private CommandPalette palette;
 
     private Button prevButton;
     private Button nextButton;
@@ -138,6 +138,8 @@ public final class MainView {
     private Button rotateLeftButton;
     private Button rotateRightButton;
     private Button deleteButton;
+    private HBox navPill;
+    private VBox toolRail;
 
     /** Hoja de estilos de marca, compartida por la ventana y los diálogos. */
     static final String APP_CSS =
@@ -147,10 +149,10 @@ public final class MainView {
         this.stage = stage;
         root.getStylesheets().add(APP_CSS);
         installDialogTheming();
-        root.setLeft(buildRail());
-        root.setTop(buildContextBar());
+        buildSections();
+        root.setTop(new VBox(buildTopBar(), buildCommandRow()));
         root.setCenter(buildWorkspace());
-        root.setBottom(new VBox(buildSearchBar(), buildStatusBar()));
+        showSection("doc");
         registerAccelerators();
 
         documentsPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
@@ -158,6 +160,7 @@ public final class MainView {
             state = session != null ? session.state : emptyState;
             pdfView = session != null ? session.pdfView : null;
             refreshControls();
+            refreshDocChips();
             updateTitle();
         });
 
@@ -198,16 +201,30 @@ public final class MainView {
         return root;
     }
 
-    // ---------------------------------------------------------------- barras
+    // ------------------------------------------------------------ workspace
 
-    private final javafx.scene.layout.StackPane workspace = new javafx.scene.layout.StackPane();
+    private final StackPane workspace = new StackPane();
 
     private Region buildWorkspace() {
         documentsPane.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
-        documentsPane.getStyleClass().add("document-tabs");
-        workspace.getChildren().add(documentsPane);
+        documentsPane.getStyleClass().add("doc-tabs");
         documentsPane.getTabs().addListener(
-                (javafx.collections.ListChangeListener<Tab>) c -> refreshWelcome());
+                (javafx.collections.ListChangeListener<Tab>) c -> {
+                    refreshWelcome();
+                    refreshDocChips();
+                });
+
+        toolRail = buildToolRail();
+        StackPane.setAlignment(toolRail, Pos.CENTER_RIGHT);
+        StackPane.setMargin(toolRail, new Insets(0, 28, 0, 0));
+
+        navPill = buildNavPill();
+        StackPane.setAlignment(navPill, Pos.BOTTOM_CENTER);
+        StackPane.setMargin(navPill, new Insets(0, 0, 30, 0));
+
+        palette = new CommandPalette(buildCommands(), () -> state, this::showDocumentMatch);
+
+        workspace.getChildren().addAll(documentsPane, toolRail, navPill, palette.getOverlay());
         refreshWelcome();
         return workspace;
     }
@@ -217,161 +234,268 @@ public final class MainView {
         workspace.getChildren().removeIf(node -> node instanceof WelcomePane);
         boolean empty = documentsPane.getTabs().isEmpty();
         documentsPane.setVisible(!empty);
+        toolRail.setVisible(!empty);
+        navPill.setVisible(!empty);
         if (empty) {
             List<Path> recent = recentFiles().stream().map(Path::of).toList();
-            WelcomePane welcome = new WelcomePane(this::openDocument, this::mergeDocuments,
-                    recent, this::loadInBackground, prefs.getBoolean(PREF_DARK, false));
-            workspace.getChildren().add(welcome);
+            WelcomePane welcome = new WelcomePane(this::openDocument, this::quickAction,
+                    recent, this::loadInBackground);
+            workspace.getChildren().add(1, welcome);
         }
     }
 
-    // -------------------------------------------------- riel + toolbar
+    /** Acción rápida desde la bienvenida: algunas piden antes abrir un PDF. */
+    private void quickAction(String key) {
+        switch (key) {
+            case "merge" -> mergeDocuments();
+            case "split" -> openThen(this::extractRange);
+            case "sign" -> openThen(this::signDocument);
+            case "protect" -> openThen(this::protectDocument);
+            default -> openDocument();
+        }
+    }
+
+    /** Abre un PDF elegido por el usuario y, al cargarlo, ejecuta la acción. */
+    private void openThen(Runnable action) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Abrir PDF");
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Documentos PDF", "*.pdf"));
+        File selected = showOpen(chooser);
+        if (selected != null) {
+            loadInBackground(selected.toPath(), null, action);
+        }
+    }
+
+    // ------------------------------------------- barra superior + comandos
 
     private static FontIcon fi(Feather ikon) {
         return FontIcon.of(ikon);
     }
 
-    /** Riel lateral de secciones (izquierda de la ventana). */
-    private Region buildRail() {
-        ToggleGroup group = new ToggleGroup();
-
-        StackPane brandMark = (StackPane) Branding.markWhite(34);
-        brandMark.getStyleClass().add("brand-mark");
-
-        ToggleButton doc = railButton(Feather.FILE_TEXT, "Documento", group, "doc");
-        doc.setSelected(true);
-        ToggleButton pages = railButton(Feather.LAYERS, "Páginas", group, "pages");
-        ToggleButton insert = railButton(Feather.PLUS_SQUARE, "Insertar", group, "insert");
-        ToggleButton annot = railButton(Feather.EDIT_2, "Anotar", group, "annot");
-        ToggleButton tools = railButton(Feather.TOOL, "Herram.", group, "tools");
-        ToggleButton sign = railButton(Feather.FEATHER, "Firma", group, "sign");
-
-        Region grow = new Region();
-        VBox.setVgrow(grow, Priority.ALWAYS);
-
+    /** Barra superior: marca, chips de documento, segmentado y búsqueda. */
+    private Region buildTopBar() {
         boolean dark = prefs.getBoolean(PREF_DARK, false);
-        themeButton = new Button(null, fi(dark ? Feather.SUN : Feather.MOON));
-        themeButton.getStyleClass().addAll("rail-icon", "rail-theme");
+        markHolder = new StackPane(Branding.mark(22, dark));
+
+        appNameLabel = new Label(APP_NAME);
+        appNameLabel.getStyleClass().add("app-name");
+
+        docChips.setAlignment(Pos.CENTER_LEFT);
+
+        Region growLeft = new Region();
+        HBox.setHgrow(growLeft, Priority.ALWAYS);
+        Region growRight = new Region();
+        HBox.setHgrow(growRight, Priority.ALWAYS);
+
+        // Botón con aspecto de campo: icono + «Buscar» + chip de atajo.
+        Label searchKbd = new Label("Ctrl K");
+        searchKbd.getStyleClass().add("kbd");
+        HBox searchContent = new HBox(7, fi(Feather.SEARCH), new Label("Buscar"), searchKbd);
+        searchContent.setAlignment(Pos.CENTER);
+        Button search = new Button(null, searchContent);
+        search.getStyleClass().add("search-chip");
+        search.setTooltip(new Tooltip("Buscar comandos y texto (Ctrl+K)"));
+        search.setOnAction(e -> openPalette());
+
+        themeButton = new Button(null, fi(prefs.getBoolean(PREF_DARK, false) ? Feather.SUN : Feather.MOON));
+        themeButton.getStyleClass().add("icon-button");
         themeButton.setTooltip(new Tooltip("Alternar modo claro / oscuro"));
         themeButton.setOnAction(e -> applyTheme(!prefs.getBoolean(PREF_DARK, false)));
 
         Button about = new Button(null, fi(Feather.INFO));
-        about.getStyleClass().add("rail-icon");
+        about.getStyleClass().add("icon-button");
         about.setTooltip(new Tooltip("Acerca de ORS Suite PDF"));
         about.setOnAction(e -> showAbout());
 
-        VBox rail = new VBox(brandMark, doc, pages, insert, annot, tools, sign,
-                grow, themeButton, about);
-        rail.getStyleClass().add("rail");
-        return rail;
+        HBox bar = new HBox(12, markHolder, appNameLabel, docChips, growLeft,
+                buildSegControl(), growRight, search, themeButton, about);
+        bar.getStyleClass().add("top-bar");
+        return bar;
     }
 
-    private ToggleButton railButton(Feather ikon, String label, ToggleGroup group, String section) {
-        ToggleButton button = new ToggleButton(label, fi(ikon));
-        button.getStyleClass().add("rail-button");
-        button.setToggleGroup(group);
-        button.setTooltip(new Tooltip(label));
-        button.setOnAction(e -> {
-            if (!button.isSelected()) {
-                // Impide que un clic en la sección activa deje el riel sin selección.
-                button.setSelected(true);
-                return;
+    /** Control segmentado central con las secciones de trabajo. */
+    private Region buildSegControl() {
+        ToggleGroup group = new ToggleGroup();
+        HBox seg = new HBox();
+        seg.getStyleClass().add("seg-control");
+        String[][] sections = {
+                {"doc", "Documento"}, {"pages", "Páginas"}, {"insert", "Insertar"},
+                {"annot", "Anotar"}, {"tools", "Herramientas"}, {"sign", "Firma"}};
+        for (String[] section : sections) {
+            ToggleButton button = new ToggleButton(section[1]);
+            button.getStyleClass().add("seg-button");
+            button.setToggleGroup(group);
+            button.setOnAction(e -> {
+                if (!button.isSelected()) {
+                    // Impide que un clic en la sección activa la deseleccione.
+                    button.setSelected(true);
+                    return;
+                }
+                showSection(section[0]);
+            });
+            segButtons.put(section[0], button);
+            seg.getChildren().add(button);
+        }
+        segButtons.get("doc").setSelected(true);
+        return seg;
+    }
+
+    /** Reconstruye los chips de documento de la barra superior. */
+    private void refreshDocChips() {
+        docChips.getChildren().clear();
+        boolean empty = documentsPane.getTabs().isEmpty();
+        appNameLabel.setVisible(empty);
+        appNameLabel.setManaged(empty);
+        Tab selected = documentsPane.getSelectionModel().getSelectedItem();
+        for (Tab tab : documentsPane.getTabs()) {
+            DocumentSession session = sessions.get(tab);
+            if (session != null) {
+                docChips.getChildren().add(buildDocChip(session, tab == selected));
             }
-            showSection(section);
-        });
-        return button;
+        }
     }
 
-    /** Construye la toolbar contextual y muestra la sección "Documento". */
-    private ToolBar buildContextBar() {
-        contextBar.getStyleClass().add("context-bar");
-        buildSections();
-        showSection("doc");
-        return contextBar;
+    private Region buildDocChip(DocumentSession session, boolean active) {
+        Path source = session.state.hasDocument() ? session.state.getDocument().source() : null;
+        String name = source != null ? source.getFileName().toString() : "documento";
+
+        Label label = new Label(name);
+        Region dot = new Region();
+        dot.getStyleClass().add("chip-dot");
+        if (session.state.isDirty()) {
+            dot.getStyleClass().add("dirty");
+        }
+        Button close = new Button(null, fi(Feather.X));
+        close.getStyleClass().add("chip-close");
+        close.setOnAction(e -> requestCloseTab(session.tab));
+
+        HBox chip = new HBox(8, label, dot, close);
+        chip.getStyleClass().add("doc-chip");
+        if (active) {
+            chip.getStyleClass().add("active");
+        }
+        chip.setOnMouseClicked(e -> documentsPane.getSelectionModel().select(session.tab));
+        if (source != null) {
+            Tooltip.install(chip, new Tooltip(source.toString()));
+        }
+        return chip;
+    }
+
+    /** Cierra una pestaña respetando la confirmación de cambios sin guardar. */
+    private void requestCloseTab(Tab tab) {
+        DocumentSession session = sessions.get(tab);
+        if (session != null && !confirmDiscard(session.state)) {
+            return;
+        }
+        documentsPane.getTabs().remove(tab);
+        if (session != null) {
+            onTabClosed(session);
+        }
+    }
+
+    /** Fila de comandos silenciosa bajo la barra superior. */
+    private Region buildCommandRow() {
+        statusLabel.getStyleClass().add("status-note");
+
+        savedIndicator = new Label("Guardado", fi(Feather.CHECK_CIRCLE));
+        savedIndicator.getStyleClass().add("saved-indicator");
+        savedIndicator.setVisible(false);
+
+        Region grow = new Region();
+        HBox.setHgrow(grow, Priority.ALWAYS);
+
+        sectionBox.setAlignment(Pos.CENTER_LEFT);
+        HBox row = new HBox(2, sectionBox, grow, statusLabel, savedIndicator);
+        row.getStyleClass().add("command-row");
+        HBox.setMargin(statusLabel, new Insets(0, 10, 0, 0));
+        return row;
     }
 
     private void showSection(String key) {
         List<javafx.scene.Node> items = sectionItems.get(key);
         if (items != null) {
-            contextBar.getItems().setAll(items);
+            sectionBox.getChildren().setAll(items);
+        }
+        ToggleButton button = segButtons.get(key);
+        if (button != null && !button.isSelected()) {
+            button.setSelected(true);
         }
     }
 
-    /** Crea, una sola vez, los botones de cada sección de la toolbar. */
+    /** Crea, una sola vez, los botones de cada sección de la fila de comandos. */
     private void buildSections() {
         // --- Documento ---
-        Button open = tbButton("Abrir", Feather.FOLDER, "Abrir PDF (Ctrl+O)", this::openDocument);
-        saveButton = tbButton("Guardar", Feather.SAVE, "Guardar (Ctrl+S)", this::save);
-        saveButton.getStyleClass().add("accent");
-        Button saveAs = tbButton("Guardar como", Feather.COPY, "Guardar con otro nombre", this::saveAs);
+        saveButton = cmdButton("Guardar", Feather.SAVE, "Guardar (Ctrl+S)", this::save);
+        saveButton.getStyleClass().add("primary");
+        Button open = cmdButton("Abrir", Feather.FOLDER, "Abrir PDF (Ctrl+O)", this::openDocument);
+        Button saveAs = cmdButton("Guardar como", Feather.COPY, "Guardar con otro nombre", this::saveAs);
+        recentButton.getStyleClass().add("cmd-button");
         recentButton.setDisable(true);
         refreshRecentMenu();
-        Button merge = tbButton("Unir", Feather.LAYERS, "Unir varios PDF en uno", this::mergeDocuments);
-        Button print = tbButton("Imprimir", Feather.PRINTER, "Imprimir (Ctrl+P)", this::printDocument);
+        Button merge = cmdButton("Unir", Feather.LAYERS, "Unir varios PDF en uno (Ctrl+M)", this::mergeDocuments);
+        Button split = cmdButton("Dividir", Feather.SCISSORS, "Extraer un rango de páginas (Ctrl+D)", this::extractRange);
+        Button print = cmdButton("Imprimir", Feather.PRINTER, "Imprimir (Ctrl+P)", this::printDocument);
         MenuButton export = buildExportMenuButton();
-        sectionItems.put("doc", List.of(sectionTitle("Documento"),
-                open, recentButton, saveButton, saveAs, sep(), merge, print, export));
+        export.getStyleClass().add("cmd-button");
+        sectionItems.put("doc", List.of(
+                saveButton, open, recentButton, saveAs, cmdSep(), merge, split, print, export));
 
         // --- Páginas ---
-        rotateLeftButton = tbButton("Rotar izq.", Feather.ROTATE_CCW, "Rotar a la izquierda", () -> rotateCurrent(-90));
-        rotateRightButton = tbButton("Rotar der.", Feather.ROTATE_CW, "Rotar a la derecha", () -> rotateCurrent(90));
-        Button moveBack = tbButton("Atrás", Feather.ARROW_UP, "Mover la página hacia atrás", () -> moveCurrent(-1));
-        Button moveFwd = tbButton("Adelante", Feather.ARROW_DOWN, "Mover la página hacia delante", () -> moveCurrent(1));
-        deleteButton = tbButton("Eliminar", Feather.TRASH_2, "Eliminar la página actual", this::deleteCurrent);
-        Button extract = tbButton("Extraer rango", Feather.SCISSORS, "Extraer un rango de páginas", this::extractRange);
-        sectionItems.put("pages", List.of(sectionTitle("Páginas"),
-                rotateLeftButton, rotateRightButton, sep(), moveBack, moveFwd, sep(), deleteButton, extract));
+        rotateLeftButton = cmdButton("Rotar izq.", Feather.ROTATE_CCW, "Rotar a la izquierda", () -> rotateCurrent(-90));
+        rotateRightButton = cmdButton("Rotar der.", Feather.ROTATE_CW, "Rotar a la derecha", () -> rotateCurrent(90));
+        Button moveBack = cmdButton("Atrás", Feather.ARROW_UP, "Mover la página hacia atrás", () -> moveCurrent(-1));
+        Button moveFwd = cmdButton("Adelante", Feather.ARROW_DOWN, "Mover la página hacia delante", () -> moveCurrent(1));
+        deleteButton = cmdButton("Eliminar", Feather.TRASH_2, "Eliminar la página actual", this::deleteCurrent);
+        Button extract = cmdButton("Extraer rango", Feather.SCISSORS, "Extraer un rango de páginas", this::extractRange);
+        sectionItems.put("pages", List.of(
+                rotateLeftButton, rotateRightButton, cmdSep(), moveBack, moveFwd, cmdSep(), deleteButton, extract));
 
         // --- Insertar ---
-        Button image = tbButton("Imagen / sello", Feather.IMAGE, "Insertar una imagen o sello", this::insertImage);
-        Button text = tbButton("Texto", Feather.TYPE, "Insertar texto", this::insertText);
-        Button watermark = tbButton("Marca de agua", Feather.DROPLET, "Añadir marca de agua a todas las páginas", this::addWatermark);
-        Button numbering = tbButton("Numerar páginas", Feather.HASH, "Numerar las páginas", this::numberPages);
-        sectionItems.put("insert", List.of(sectionTitle("Insertar"),
-                image, text, sep(), watermark, numbering));
+        Button image = cmdButton("Imagen / sello", Feather.IMAGE, "Insertar una imagen o sello", this::insertImage);
+        Button text = cmdButton("Texto", Feather.TYPE, "Insertar texto", this::insertText);
+        Button watermark = cmdButton("Marca de agua", Feather.DROPLET, "Añadir marca de agua a todas las páginas", this::addWatermark);
+        Button numbering = cmdButton("Numerar páginas", Feather.HASH, "Numerar las páginas", this::numberPages);
+        sectionItems.put("insert", List.of(image, text, cmdSep(), watermark, numbering));
 
         // --- Anotar ---
-        Button highlight = tbButton("Resaltar", Feather.EDIT_3, "Resaltar una zona", () -> annotate("Resaltado añadido",
+        Button highlight = cmdButton("Resaltar", Feather.EDIT_3, "Resaltar una zona", () -> annotate("Resaltado añadido",
                 (d, r) -> AnnotationService.highlight(d, r.page(), r.x(), r.y(), r.width(), r.height())));
-        Button rectangle = tbButton("Recuadro", Feather.SQUARE, "Dibujar un recuadro", () -> annotate("Recuadro añadido",
+        Button rectangle = cmdButton("Recuadro", Feather.SQUARE, "Dibujar un recuadro", () -> annotate("Recuadro añadido",
                 (d, r) -> AnnotationService.rectangle(d, r.page(), r.x(), r.y(), r.width(), r.height())));
-        Button note = tbButton("Nota", Feather.MESSAGE_SQUARE, "Añadir una nota", this::annotateNote);
-        Button ink = tbButton("Dibujo libre", Feather.EDIT_2, "Dibujar a mano alzada", this::annotateFreehand);
-        Button arrow = tbButton("Flecha", Feather.ARROW_RIGHT, "Dibujar una flecha", this::annotateArrow);
-        sectionItems.put("annot", List.of(sectionTitle("Anotar"),
-                highlight, rectangle, note, sep(), ink, arrow));
+        Button note = cmdButton("Nota", Feather.MESSAGE_SQUARE, "Añadir una nota", this::annotateNote);
+        Button ink = cmdButton("Dibujo libre", Feather.EDIT_2, "Dibujar a mano alzada", this::annotateFreehand);
+        Button arrow = cmdButton("Flecha", Feather.ARROW_RIGHT, "Dibujar una flecha", this::annotateArrow);
+        sectionItems.put("annot", List.of(highlight, rectangle, note, cmdSep(), ink, arrow));
 
         // --- Herramientas ---
-        Button ocr = tbButton("OCR página", Feather.ALIGN_LEFT, "Reconocer texto (OCR) de la página actual", this::ocrCurrentPage);
-        Button redact = tbButton("Redactar", Feather.EYE_OFF, "Redactar (ocultar de forma segura) una zona", this::redactZone);
-        Button find = tbButton("Buscar", Feather.SEARCH, "Buscar en el documento (Ctrl+F)", this::toggleSearch);
-        Button protect = tbButton("Proteger", Feather.LOCK, "Proteger con contraseña", this::protectDocument);
-        Button unprotect = tbButton("Quitar protección", Feather.UNLOCK, "Quitar la protección con contraseña", this::unprotectDocument);
-        sectionItems.put("tools", List.of(sectionTitle("Herramientas"),
-                ocr, redact, find, sep(), protect, unprotect));
+        Button ocr = cmdButton("OCR página", Feather.ALIGN_LEFT, "Reconocer texto (OCR) de la página actual", this::ocrCurrentPage);
+        Button redact = cmdButton("Redactar", Feather.EYE_OFF, "Redactar (ocultar de forma segura) una zona", this::redactZone);
+        Button find = cmdButton("Buscar", Feather.SEARCH, "Buscar en el documento (Ctrl+K)", this::openPalette);
+        Button protect = cmdButton("Proteger", Feather.LOCK, "Proteger con contraseña", this::protectDocument);
+        Button unprotect = cmdButton("Quitar protección", Feather.UNLOCK, "Quitar la protección con contraseña", this::unprotectDocument);
+        sectionItems.put("tools", List.of(ocr, redact, find, cmdSep(), protect, unprotect));
 
         // --- Firma ---
-        Button signButton = tbButton("Firmar con certificado", Feather.FEATHER, "Firmar con un certificado digital", this::signDocument);
-        signButton.getStyleClass().add("accent");
-        Button validate = tbButton("Validar firmas", Feather.CHECK_CIRCLE, "Validar las firmas del documento", this::validateSignatures);
-        sectionItems.put("sign", List.of(sectionTitle("Firma"), signButton, validate));
+        Button signButton = cmdButton("Firmar documento", Feather.FEATHER, "Firmar con un certificado digital", this::signDocument);
+        signButton.getStyleClass().add("primary");
+        Button validate = cmdButton("Verificar firmas", Feather.CHECK_CIRCLE, "Validar las firmas del documento", this::validateSignatures);
+        sectionItems.put("sign", List.of(signButton, validate));
     }
 
-    private Button tbButton(String text, Feather ikon, String tip, Runnable action) {
+    private Button cmdButton(String text, Feather ikon, String tip, Runnable action) {
         Button button = new Button(text, fi(ikon));
+        button.getStyleClass().add("cmd-button");
         button.setTooltip(new Tooltip(tip));
         button.setOnAction(e -> action.run());
         return button;
     }
 
-    private Label sectionTitle(String text) {
-        Label label = new Label(text);
-        label.getStyleClass().add("section-title");
-        return label;
-    }
-
-    private Separator sep() {
-        return new Separator(javafx.geometry.Orientation.VERTICAL);
+    private Region cmdSep() {
+        Region sep = new Region();
+        sep.getStyleClass().add("cmd-sep");
+        HBox.setMargin(sep, new Insets(0, 6, 0, 6));
+        return sep;
     }
 
     /**
@@ -426,41 +550,71 @@ public final class MainView {
             accelerators.put(new KeyCharacterCombination("O", KeyCombination.SHORTCUT_DOWN), this::openDocument);
             accelerators.put(new KeyCharacterCombination("S", KeyCombination.SHORTCUT_DOWN), this::save);
             accelerators.put(new KeyCharacterCombination("P", KeyCombination.SHORTCUT_DOWN), this::printDocument);
-            accelerators.put(new KeyCharacterCombination("F", KeyCombination.SHORTCUT_DOWN), this::toggleSearch);
+            accelerators.put(new KeyCharacterCombination("K", KeyCombination.SHORTCUT_DOWN), this::openPalette);
+            accelerators.put(new KeyCharacterCombination("F", KeyCombination.SHORTCUT_DOWN), this::openPalette);
+            accelerators.put(new KeyCharacterCombination("M", KeyCombination.SHORTCUT_DOWN), this::mergeDocuments);
+            accelerators.put(new KeyCharacterCombination("D", KeyCombination.SHORTCUT_DOWN), this::extractRange);
         });
     }
 
-    // ------------------------------------------------------ barra de estado
+    // ------------------------- píldora de navegación y riel de herramientas
 
-    private Region buildStatusBar() {
-        HBox bar = new HBox();
-        bar.getStyleClass().add("status-bar");
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        prevButton = statusIconButton(Feather.CHEVRON_LEFT, "Página anterior",
+    /** Píldora oscura flotante: página, zoom y ajuste, en el borde inferior. */
+    private HBox buildNavPill() {
+        prevButton = pillButton(Feather.CHEVRON_LEFT, "Página anterior",
                 () -> goToPage(state.getCurrentPage() - 1));
-        nextButton = statusIconButton(Feather.CHEVRON_RIGHT, "Página siguiente",
+        nextButton = pillButton(Feather.CHEVRON_RIGHT, "Página siguiente",
                 () -> goToPage(state.getCurrentPage() + 1));
-        pageLabel.getStyleClass().add("page-value");
+        pageLabel.getStyleClass().add("pill-value");
 
-        Button zoomOut = statusIconButton(Feather.MINUS, "Reducir",
+        Button zoomOut = pillButton(Feather.MINUS, "Reducir",
                 () -> state.setZoom(state.getZoom() - 0.25));
-        Button zoomReset = statusIconButton(Feather.MAXIMIZE, "Zoom natural (100 %)",
-                () -> state.setZoom(1.0));
-        Button zoomIn = statusIconButton(Feather.PLUS, "Ampliar",
+        Button zoomIn = pillButton(Feather.PLUS, "Ampliar",
                 () -> state.setZoom(state.getZoom() + 0.25));
-        zoomLabel.getStyleClass().add("zoom-value");
+        Button zoomReset = pillButton(Feather.MAXIMIZE, "Zoom natural (100 %)",
+                () -> state.setZoom(1.0));
+        zoomLabel.getStyleClass().add("pill-value");
 
-        bar.getChildren().addAll(statusLabel, spacer,
-                prevButton, pageLabel, nextButton, sep(),
-                zoomOut, zoomLabel, zoomIn, zoomReset);
-        return bar;
+        HBox pill = new HBox(8, prevButton, pageLabel, nextButton, pillSep(),
+                zoomOut, zoomLabel, zoomIn, pillSep(), zoomReset);
+        pill.getStyleClass().add("nav-pill");
+        pill.setMaxWidth(Region.USE_PREF_SIZE);
+        pill.setMaxHeight(Region.USE_PREF_SIZE);
+        return pill;
     }
 
-    private Button statusIconButton(Feather ikon, String tip, Runnable action) {
+    private Button pillButton(Feather ikon, String tip, Runnable action) {
         Button button = new Button(null, fi(ikon));
+        button.getStyleClass().add("pill-button");
+        button.setTooltip(new Tooltip(tip));
+        button.setOnAction(e -> action.run());
+        return button;
+    }
+
+    private Region pillSep() {
+        Region sep = new Region();
+        sep.getStyleClass().add("pill-sep");
+        return sep;
+    }
+
+    /** Riel flotante de herramientas rápidas, en el borde derecho del lienzo. */
+    private VBox buildToolRail() {
+        Button text = toolButton(Feather.TYPE, "Insertar texto", this::insertText);
+        Button draw = toolButton(Feather.EDIT_3, "Dibujar a mano alzada", this::annotateFreehand);
+        Button image = toolButton(Feather.IMAGE, "Insertar imagen o sello", this::insertImage);
+        Button note = toolButton(Feather.MESSAGE_SQUARE, "Añadir una nota", this::annotateNote);
+        Button sign = toolButton(Feather.FEATHER, "Firmar documento", this::signDocument);
+
+        VBox rail = new VBox(3, text, draw, image, note, sign);
+        rail.getStyleClass().add("float-rail");
+        rail.setMaxWidth(Region.USE_PREF_SIZE);
+        rail.setMaxHeight(Region.USE_PREF_SIZE);
+        return rail;
+    }
+
+    private Button toolButton(Feather ikon, String tip, Runnable action) {
+        Button button = new Button(null, fi(ikon));
+        button.getStyleClass().add("tool-button");
         button.setTooltip(new Tooltip(tip));
         button.setOnAction(e -> action.run());
         return button;
@@ -475,89 +629,91 @@ public final class MainView {
                 .showInformation();
     }
 
-    // ---------------------------------------------------------- búsqueda
+    // ------------------------------------------ paleta de comandos (Ctrl+K)
 
-    private HBox buildSearchBar() {
-        searchField = new TextField();
-        searchField.setPromptText("Buscar en el documento…");
-        searchField.setPrefColumnCount(24);
-        searchField.setOnAction(e -> runSearch());
-        searchField.setOnKeyPressed(e -> {
-            if (e.getCode() == KeyCode.ESCAPE) {
-                toggleSearch();
-            }
-        });
-        Button prev = new Button("◀");
-        prev.setOnAction(e -> navigateSearch(-1));
-        Button next = new Button("▶");
-        next.setOnAction(e -> navigateSearch(1));
-        Button close = new Button("✕");
-        close.setOnAction(e -> toggleSearch());
-
-        searchBar = new HBox(8, new Label("Buscar:"), searchField, prev, next, searchCount, close);
-        searchBar.setAlignment(Pos.CENTER_LEFT);
-        searchBar.setPadding(new Insets(6, 12, 6, 12));
-        searchBar.setStyle("-fx-background-color: -color-bg-subtle;");
-        searchBar.setVisible(false);
-        searchBar.setManaged(false);
-        return searchBar;
+    private void openPalette() {
+        palette.show();
     }
 
-    private void toggleSearch() {
-        boolean show = !searchBar.isVisible();
-        searchBar.setVisible(show);
-        searchBar.setManaged(show);
-        if (show) {
-            searchField.requestFocus();
-            searchField.selectAll();
-        } else {
-            if (pdfView != null) {
-                pdfView.clearSearchMatches();
-            }
-            searchResults = new ArrayList<>();
-            searchCount.setText("0/0");
-        }
+    /** Comandos disponibles en la paleta; los que requieren documento se
+     *  ocultan cuando no hay ninguno abierto. */
+    private List<CommandPalette.Command> buildCommands() {
+        List<CommandPalette.Command> commands = new ArrayList<>();
+        commands.add(new CommandPalette.Command("Abrir PDF…",
+                "Abrir un documento del disco", Feather.FOLDER, "Ctrl+O", false, this::openDocument));
+        commands.add(new CommandPalette.Command("Unir PDFs…",
+                "Combinar varios documentos en uno", Feather.LAYERS, "Ctrl+M", false, this::mergeDocuments));
+        commands.add(new CommandPalette.Command("Guardar",
+                "Guardar el documento actual", Feather.SAVE, "Ctrl+S", true, this::save));
+        commands.add(new CommandPalette.Command("Guardar como…",
+                "Guardar con otro nombre", Feather.COPY, null, true, this::saveAs));
+        commands.add(new CommandPalette.Command("Dividir documento…",
+                "Extraer un rango de páginas", Feather.SCISSORS, "Ctrl+D", true, this::extractRange));
+        commands.add(new CommandPalette.Command("Imprimir…",
+                "Enviar a la impresora", Feather.PRINTER, "Ctrl+P", true, this::printDocument));
+        commands.add(new CommandPalette.Command("Exportar texto…",
+                "Extraer el texto a un .txt", Feather.UPLOAD, null, true, this::exportAsText));
+        commands.add(new CommandPalette.Command("Exportar imágenes…",
+                "Una imagen PNG por página", Feather.IMAGE, null, true, this::exportAsImages));
+        commands.add(new CommandPalette.Command("Rotar página a la izquierda",
+                null, Feather.ROTATE_CCW, null, true, () -> rotateCurrent(-90)));
+        commands.add(new CommandPalette.Command("Rotar página a la derecha",
+                null, Feather.ROTATE_CW, null, true, () -> rotateCurrent(90)));
+        commands.add(new CommandPalette.Command("Eliminar página actual",
+                null, Feather.TRASH_2, null, true, this::deleteCurrent));
+        commands.add(new CommandPalette.Command("Insertar imagen o sello…",
+                null, Feather.IMAGE, null, true, this::insertImage));
+        commands.add(new CommandPalette.Command("Insertar texto…",
+                null, Feather.TYPE, null, true, this::insertText));
+        commands.add(new CommandPalette.Command("Marca de agua…",
+                "Aplicar a todas las páginas", Feather.DROPLET, null, true, this::addWatermark));
+        commands.add(new CommandPalette.Command("Numerar páginas",
+                null, Feather.HASH, null, true, this::numberPages));
+        commands.add(new CommandPalette.Command("Resaltar zona",
+                null, Feather.EDIT_3, null, true, () -> annotate("Resaltado añadido",
+                (d, r) -> AnnotationService.highlight(d, r.page(), r.x(), r.y(), r.width(), r.height()))));
+        commands.add(new CommandPalette.Command("Añadir nota",
+                null, Feather.MESSAGE_SQUARE, null, true, this::annotateNote));
+        commands.add(new CommandPalette.Command("Dibujo libre",
+                null, Feather.EDIT_2, null, true, this::annotateFreehand));
+        commands.add(new CommandPalette.Command("OCR de la página actual",
+                "Reconocer texto escaneado", Feather.ALIGN_LEFT, null, true, this::ocrCurrentPage));
+        commands.add(new CommandPalette.Command("Redactar zona",
+                "Ocultar contenido de forma irreversible", Feather.EYE_OFF, null, true, this::redactZone));
+        commands.add(new CommandPalette.Command("Proteger con contraseña…",
+                "Cifrado AES-256, local", Feather.LOCK, null, true, this::protectDocument));
+        commands.add(new CommandPalette.Command("Quitar protección",
+                null, Feather.UNLOCK, null, true, this::unprotectDocument));
+        commands.add(new CommandPalette.Command("Firmar documento…",
+                "Firma digital PAdES con certificado", Feather.FEATHER, null, true, this::signDocument));
+        commands.add(new CommandPalette.Command("Verificar firmas",
+                null, Feather.CHECK_CIRCLE, null, true, this::validateSignatures));
+        commands.add(new CommandPalette.Command("Alternar modo claro / oscuro",
+                null, Feather.MOON, null, false,
+                () -> applyTheme(!prefs.getBoolean(PREF_DARK, false))));
+        commands.add(new CommandPalette.Command("Acerca de ORS Suite PDF",
+                null, Feather.INFO, null, false, this::showAbout));
+        return commands;
     }
 
-    private void runSearch() {
-        if (!state.hasDocument() || searchField.getText().isBlank()) {
+    /** Navega a una coincidencia elegida en la paleta y resalta la búsqueda. */
+    private void showDocumentMatch(String query, int page) {
+        if (!state.hasDocument()) {
             return;
         }
         PdfDocument document = state.getDocument();
         PdfView view = pdfView;
         AppState target = state;
-        String query = searchField.getText();
-        statusLabel.setText("Buscando…");
         runBackground(() -> {
             List<SearchService.Match> results = SearchService.find(document, query);
             Platform.runLater(() -> {
-                searchResults = results;
-                searchIndex = 0;
                 if (view != null) {
                     view.setSearchMatches(results);
                 }
-                if (results.isEmpty()) {
-                    searchCount.setText("0/0");
-                    statusLabel.setText("Sin coincidencias");
-                } else {
-                    searchCount.setText("1/" + results.size());
-                    target.setCurrentPage(results.get(0).page());
-                    statusLabel.setText(results.size() + " coincidencias");
-                }
+                target.setCurrentPage(page);
+                statusLabel.setText(results.isEmpty() ? "" : results.size() + " coincidencias de «" + query + "»");
             });
         }, "No se pudo buscar");
-    }
-
-    private void navigateSearch(int direction) {
-        if (searchResults.isEmpty()) {
-            runSearch();
-            return;
-        }
-        searchIndex = (searchIndex + direction + searchResults.size()) % searchResults.size();
-        searchCount.setText((searchIndex + 1) + "/" + searchResults.size());
-        if (state.hasDocument()) {
-            state.setCurrentPage(searchResults.get(searchIndex).page());
-        }
     }
 
     // ------------------------------------------------ diálogos de archivo
@@ -579,6 +735,9 @@ public final class MainView {
         prefs.putBoolean(PREF_DARK, dark);
         if (themeButton != null) {
             themeButton.setGraphic(fi(dark ? Feather.SUN : Feather.MOON));
+        }
+        if (markHolder != null) {
+            markHolder.getChildren().setAll(Branding.mark(22, dark));
         }
         refreshWelcome();
     }
@@ -718,10 +877,10 @@ public final class MainView {
 
     /** Abre el documento en una pestaña nueva. */
     private void loadInBackground(Path path) {
-        loadInBackground(path, null);
+        loadInBackground(path, null, null);
     }
 
-    private void loadInBackground(Path path, String password) {
+    private void loadInBackground(Path path, String password, Runnable onLoaded) {
         statusLabel.setText("Abriendo " + path.getFileName() + "…");
         runBackground(() -> {
             PdfDocument doc;
@@ -732,7 +891,7 @@ public final class MainView {
                     Optional<String> pwd = askPassword("Documento protegido",
                             "Introduce la contraseña de " + path.getFileName() + ":");
                     if (pwd.isPresent() && !pwd.get().isEmpty()) {
-                        loadInBackground(path, pwd.get());
+                        loadInBackground(path, pwd.get(), onLoaded);
                     } else {
                         statusLabel.setText("Apertura cancelada");
                     }
@@ -749,6 +908,9 @@ public final class MainView {
                 documentsPane.getSelectionModel().select(session.tab);
                 addRecent(path);
                 statusLabel.setText(path.getFileName() + "  ·  " + opened.pageCount() + " páginas");
+                if (onLoaded != null) {
+                    onLoaded.run();
+                }
             });
         }, "No se pudo abrir el PDF");
     }
@@ -757,13 +919,53 @@ public final class MainView {
         if (!state.hasDocument()) {
             return;
         }
-        Optional<String> password = askPassword("Proteger con contraseña",
-                "Contraseña necesaria para abrir el documento:");
-        if (password.isEmpty() || password.get().isEmpty()) {
+        Dialog<ProtectSetup> dialog = new Dialog<>();
+        dialog.setTitle("Proteger con contraseña");
+        dialog.initOwner(stage);
+        ButtonType protectType = new ButtonType("Proteger", ButtonType.OK.getButtonData());
+        dialog.getDialogPane().getButtonTypes().addAll(protectType, ButtonType.CANCEL);
+
+        Label subtitle = new Label("Cifrado AES-256, local");
+        subtitle.setStyle("-fx-text-fill: -ors-text-muted; -fx-font-size: 12px;");
+        StackPane chip = new StackPane(fi(Feather.LOCK));
+        chip.getStyleClass().add("dialog-icon-chip");
+        Label title = new Label("Proteger con contraseña");
+        title.setStyle("-fx-font-size: 15px; -fx-font-weight: 600;");
+        HBox header = new HBox(10, chip, new VBox(2, title, subtitle));
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        PasswordField password = new PasswordField();
+        password.setPromptText("Contraseña");
+        PasswordField confirm = new PasswordField();
+        confirm.setPromptText("Repite la contraseña");
+        CheckBox allowPrint = new CheckBox("Permitir imprimir");
+        allowPrint.setSelected(true);
+        CheckBox allowCopy = new CheckBox("Permitir copiar texto");
+
+        VBox content = new VBox(10, header,
+                new Label("Contraseña"), password,
+                new Label("Confirmar contraseña"), confirm,
+                allowPrint, allowCopy);
+        content.setPadding(new Insets(4, 4, 0, 4));
+        content.setPrefWidth(340);
+        dialog.getDialogPane().setContent(content);
+        Platform.runLater(password::requestFocus);
+
+        var okButton = dialog.getDialogPane().lookupButton(protectType);
+        okButton.disableProperty().bind(password.textProperty().isEmpty()
+                .or(password.textProperty().isNotEqualTo(confirm.textProperty())));
+
+        dialog.setResultConverter(button -> button == protectType
+                ? new ProtectSetup(password.getText(), allowPrint.isSelected(), allowCopy.isSelected())
+                : null);
+
+        Optional<ProtectSetup> setup = dialog.showAndWait();
+        if (setup.isEmpty()) {
             return;
         }
         try {
-            SecurityService.protect(state.getDocument(), password.get());
+            SecurityService.protect(state.getDocument(), setup.get().password(),
+                    setup.get().allowPrint(), setup.get().allowCopy());
             state.markMutated();
             statusLabel.setText("Protección aplicada — se cifrará al guardar");
         } catch (Exception ex) {
@@ -1669,7 +1871,7 @@ public final class MainView {
         // --- Vista previa en vivo ---
         Label preview = new Label();
         preview.setWrapText(true);
-        preview.setStyle("-fx-font-family: 'IBM Plex Sans'; -fx-font-size: 12px;"
+        preview.setStyle("-fx-font-family: 'Instrument Sans'; -fx-font-size: 12px;"
                 + " -fx-text-fill: -color-accent-emphasis;"
                 + " -fx-background-color: -color-bg-default;"
                 + " -fx-border-color: -color-accent-emphasis; -fx-border-width: 1.5;"
@@ -1807,6 +2009,15 @@ public final class MainView {
 
         pageLabel.setText(has ? (current + 1) + " / " + total : "—");
         zoomLabel.setText(Math.round(state.getZoom() * 100) + " %");
+
+        if (savedIndicator != null) {
+            boolean dirty = state.isDirty();
+            savedIndicator.setVisible(has);
+            savedIndicator.setText(dirty ? "Sin guardar" : "Guardado");
+            savedIndicator.setGraphic(fi(dirty ? Feather.EDIT_2 : Feather.CHECK_CIRCLE));
+            savedIndicator.setStyle(dirty ? "-fx-text-fill: #E8A13C;" : "");
+            ((FontIcon) savedIndicator.getGraphic()).setStyle(dirty ? "-fx-icon-color: #E8A13C;" : "");
+        }
 
         if (prevButton == null) {
             return;
@@ -2029,6 +2240,7 @@ public final class MainView {
         Path source = session.state.hasDocument() ? session.state.getDocument().source() : null;
         String name = source != null ? source.getFileName().toString() : "documento";
         session.tab.setText(name + (session.state.isDirty() ? " *" : ""));
+        refreshDocChips();
     }
 
     private void onTabClosed(DocumentSession session) {
@@ -2054,20 +2266,13 @@ public final class MainView {
         private final Tab tab = new Tab();
 
         DocumentSession() {
-            Tab pages = new Tab("Páginas", new ThumbnailPanel(state));
-            pages.setClosable(false);
-            Tab bookmarks = new Tab("Marcadores", new BookmarkPanel(state));
-            bookmarks.setClosable(false);
-            Tab form = new Tab("Formulario", new FormPanel(state));
-            form.setClosable(false);
-            TabPane sidebar = new TabPane(pages, bookmarks, form);
-            sidebar.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-            sidebar.getStyleClass().add("sidebar-tabs");
+            // Lienzo redondeado sobre el que flota el panel lateral.
+            StackPane canvasHolder = new StackPane(pdfView);
+            canvasHolder.getStyleClass().add("canvas-holder");
 
-            SplitPane split = new SplitPane(sidebar, pdfView);
-            split.setDividerPositions(0.24);
-            SplitPane.setResizableWithParent(sidebar, Boolean.FALSE);
-            tab.setContent(split);
+            StackPane wrap = new StackPane(canvasHolder, buildSidePanel());
+            wrap.setPadding(new Insets(10, 14, 14, 14));
+            tab.setContent(wrap);
 
             state.documentProperty().addListener((o, a, b) -> {
                 updateTabTitle(this);
@@ -2105,10 +2310,65 @@ public final class MainView {
             });
             tab.setOnClosed(event -> onTabClosed(this));
         }
+
+        /** Panel flotante izquierdo: miniaturas, marcadores y formulario. */
+        private Region buildSidePanel() {
+            ThumbnailPanel thumbnails = new ThumbnailPanel(state);
+            BookmarkPanel bookmarks = new BookmarkPanel(state);
+            FormPanel form = new FormPanel(state);
+
+            StackPane content = new StackPane(thumbnails, bookmarks, form);
+            VBox.setVgrow(content, Priority.ALWAYS);
+
+            ToggleGroup group = new ToggleGroup();
+            HBox miniSeg = new HBox(2,
+                    miniSegButton(Feather.LAYERS, "Páginas", group, thumbnails, content),
+                    miniSegButton(Feather.BOOKMARK, "Marcadores", group, bookmarks, content),
+                    miniSegButton(Feather.CHECK_SQUARE, "Formulario", group, form, content));
+            miniSeg.getStyleClass().add("mini-seg");
+            ((ToggleButton) miniSeg.getChildren().get(0)).setSelected(true);
+            showOnly(content, thumbnails);
+
+            VBox panel = new VBox(10, miniSeg, content);
+            panel.getStyleClass().add("float-panel");
+            panel.setPadding(new Insets(12));
+            panel.setPrefWidth(186);
+            panel.setMaxWidth(186);
+            StackPane.setAlignment(panel, Pos.CENTER_LEFT);
+            StackPane.setMargin(panel, new Insets(14));
+            return panel;
+        }
+
+        private ToggleButton miniSegButton(Feather ikon, String tip, ToggleGroup group,
+                                           javafx.scene.Node target, StackPane content) {
+            ToggleButton button = new ToggleButton(null, fi(ikon));
+            button.getStyleClass().add("mini-seg-button");
+            button.setToggleGroup(group);
+            button.setTooltip(new Tooltip(tip));
+            button.setOnAction(e -> {
+                if (!button.isSelected()) {
+                    button.setSelected(true);
+                    return;
+                }
+                showOnly(content, target);
+            });
+            return button;
+        }
+
+        private void showOnly(StackPane content, javafx.scene.Node target) {
+            for (javafx.scene.Node child : content.getChildren()) {
+                child.setVisible(child == target);
+                child.setManaged(child == target);
+            }
+        }
     }
 
     /** Resultado del diálogo de inserción de imagen: esquina y anchura (pt). */
     private record Placement(String corner, double width) {
+    }
+
+    /** Resultado del diálogo de protección: contraseña y permisos. */
+    private record ProtectSetup(String password, boolean allowPrint, boolean allowCopy) {
     }
 
     /** Resultado del diálogo de inserción de texto: contenido, tamaño y esquina. */

@@ -151,6 +151,9 @@ public final class ThumbnailPanel extends BorderPane {
             imageView.setFitWidth(THUMB_WIDTH);
             imageView.setPreserveRatio(true);
             imageView.setSmooth(true);
+            // Nº de página en monoespaciada, como en la especificación.
+            label.getStyleClass().add("mono");
+            label.setStyle("-fx-font-size: 10px;");
 
             setOnDragDetected(e -> {
                 if (isEmpty() || getItem() == null) {
@@ -212,7 +215,7 @@ public final class ThumbnailPanel extends BorderPane {
                 setText(null);
                 return;
             }
-            label.setText("Página " + (page + 1));
+            label.setText(String.valueOf(page + 1));
             Image thumb = cache.get(page);
             imageView.setImage(thumb);
             if (thumb == null) {

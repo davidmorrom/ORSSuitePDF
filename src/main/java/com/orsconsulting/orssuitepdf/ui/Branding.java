@@ -12,15 +12,26 @@ import javafx.scene.shape.SVGPath;
 import javafx.scene.transform.Scale;
 
 /**
- * Recursos de marca (iconos y logotipos) de ORS Suite PDF, cargados desde el
- * classpath ({@code /branding}).
+ * Recursos de marca (colores, iconos y logotipos) de ORS Suite PDF según el
+ * lenguaje visual «Cobalto flotante»: acento #3D5BF5 sobre tinta #0F1522,
+ * con tintes claros #8B9DFF / #EDF0FE. Los PNG se cargan desde el classpath
+ * ({@code /branding}); el isotipo se reconstruye en vectorial para que sea
+ * nítido a cualquier tamaño.
  */
 public final class Branding {
 
-    /** Color primario de marca. */
-    public static final String PRIMARY = "#1A5EA8";
-    /** Azul profundo de marca. */
-    public static final String DEEP = "#1C3C72";
+    /** Acento de marca (cobalto). */
+    public static final String ACCENT = "#3D5BF5";
+    /** Acento en hover / pulsado. */
+    public static final String ACCENT_DOWN = "#2A44D4";
+    /** Tinta (texto principal, superficies oscuras). */
+    public static final String INK = "#0F1522";
+    /** Acento claro (detalles, satélites de la marca). */
+    public static final String ACCENT_LIGHT = "#8B9DFF";
+    /** Tinte de acento para fondos suaves. */
+    public static final String TINT = "#EDF0FE";
+    /** Verde de confirmación. */
+    public static final String OK = "#22B573";
 
     private Branding() {
     }
@@ -53,31 +64,37 @@ public final class Branding {
             {17, 48}, {28, 48}};
 
     /**
-     * Marca ORS (isotipo) reconstruida en vectorial para el riel oscuro:
-     * nítida a cualquier tamaño y sin depender de un PNG de imprenta. Se
-     * corresponde con el símbolo {@code ors-mark-white} de la especificación.
+     * Marca ORS (isotipo) en vectorial, en sus dos variantes de la
+     * especificación: {@code ors-mark} (cuerpo cobalto, para fondos claros)
+     * y {@code ors-mark-white} (cuerpo blanco, para fondos oscuros).
      *
-     * @param size lado en píxeles del contenedor cuadrado resultante
+     * @param size    lado en píxeles del contenedor cuadrado resultante
+     * @param forDark {@code true} para la variante blanca sobre fondo oscuro
      */
-    public static Node markWhite(double size) {
+    public static Node mark(double size, boolean forDark) {
+        Color body = forDark ? Color.WHITE : Color.web(ACCENT);
+        Color fold = forDark ? Color.web(ACCENT_LIGHT) : Color.web("#D9DFFC");
+        Color pixel = forDark ? Color.web(ACCENT) : Color.WHITE;
+        Color satBig = forDark ? Color.WHITE : Color.web(ACCENT);
+        Color satSmall = forDark ? Color.web("#D9DFFC") : Color.web(ACCENT_LIGHT);
+
         Group mark = new Group();
 
-        SVGPath body = new SVGPath();
-        body.setContent("M10 4 H40 L54 18 V68 H10 Z");
-        body.setFill(Color.WHITE);
+        SVGPath sheet = new SVGPath();
+        sheet.setContent("M10 4 H40 L54 18 V68 H10 Z");
+        sheet.setFill(body);
 
         SVGPath corner = new SVGPath();
         corner.setContent("M40 4 L54 18 H40 Z");
-        corner.setFill(Color.web("#4A90D9"));
-        mark.getChildren().addAll(body, corner);
+        corner.setFill(fold);
+        mark.getChildren().addAll(sheet, corner);
 
-        Color pixel = Color.web("#1A5EA8");
         for (int[] cell : MARK_PIXELS) {
             mark.getChildren().add(cell(cell[0], cell[1], 8, 8, pixel));
         }
         mark.getChildren().addAll(
-                cell(58, 2, 9, 9, Color.WHITE),
-                cell(66, 14, 5, 5, Color.web("#C8DEF5")));
+                cell(58, 2, 9, 9, satBig),
+                cell(66, 14, 5, 5, satSmall));
 
         double scale = size / 72.0;
         mark.getTransforms().add(new Scale(scale, scale));

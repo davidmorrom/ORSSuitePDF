@@ -1,80 +1,129 @@
 /*
- * ORS Suite PDF — sistema visual sobre AtlantaFX.
+ * ORS Suite PDF — sistema visual «Cobalto flotante» sobre AtlantaFX.
  *
- * Reconstruye la especificación de diseño «ORS Suite PDF — Rediseño de
- * interfaz» (handoff de Claude Design): riel azul marino con etiquetas,
- * barra contextual, barra de estado, pestañas, panel lateral, visor y
- * barras de scroll de acento. Tipografía IBM Plex Sans (UI) + IBM Plex
- * Mono (valores técnicos).
+ * Principios del lenguaje: sin bordes ni barras fijas — todo lo que no es
+ * lienzo flota (radio 13–16 px, sombra suave); comandos frecuentes como texto
+ * silencioso y el resto en la paleta Ctrl+K; acento cobalto #3D5BF5 sobre
+ * tinta #0F1522; tipografía Instrument Sans (UI) + IBM Plex Mono (valores
+ * técnicos: nº de página, zoom, atajos).
  *
- * Todo se expresa mediante los design tokens de AtlantaFX, redefinidos aquí
- * con la paleta ORS para el modo claro (.root) y el oscuro (.dark).
+ * Los tokens se definen para el modo claro en .root y se redefinen para el
+ * oscuro en .dark (la clase la conmuta MainView junto con el user-agent
+ * stylesheet Primer de AtlantaFX).
  */
 
 /* ============================ PALETA · CLARO ============================ */
 
-/*
- * Los tokens estándar de fondo/texto/borde (-color-bg-*, -color-fg-*,
- * -color-border-*, -color-success-*) los gestiona AtlantaFX (PrimerLight /
- * PrimerDark) y cambian solos con el tema. Aquí SOLO reasignamos el acento a
- * los azules ORS y definimos los tokens propios -ors-* (superficies concretas
- * del spec que AtlantaFX no cubre). Redefinir los estándar en .root rompería
- * el cambio de tema, así que no se tocan.
- */
-
 .root {
-    -ors-brand: #1A5EA8;
-    -ors-deep:  #1C3C72;
-    -ors-mid:   #4A90D9;
-    -ors-light: #C8DEF5;
+    /* Marca */
+    -ors-accent:       #3D5BF5;
+    -ors-accent-down:  #2A44D4;
+    -ors-accent-light: #8B9DFF;
+    -ors-ink:          #0F1522;
+    -ors-tint:         #EDF0FE;
+    -ors-tint-strong:  #DDE3FD;
+    -ors-ok:           #22B573;
 
-    -fx-font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+    /* Superficies */
+    -ors-surface:      #F6F7FB;   /* fondo de ventana                        */
+    -ors-canvas:       #E9ECF2;   /* lienzo del visor                        */
+    -ors-seg:          #EAECF3;   /* pista del control segmentado            */
+    -ors-panel:        #FFFFFF;   /* tarjetas, chips, diálogos               */
+    -ors-border:       #E6E9F1;
+    -ors-border-soft:  #EEF0F5;
+    -ors-hover:        #F1F3F8;
+    -ors-kbd:          #F1F3F8;
 
-    -color-accent-fg:       -ors-brand;
-    -color-accent-emphasis: -ors-brand;
-    -color-accent-muted:    -ors-mid;
-    -color-accent-subtle:   #EAF1FA;
+    /* Texto */
+    -ors-text:         #0F1522;
+    -ors-text-mid:     #454C5C;
+    -ors-text-muted:   #69707F;
+    -ors-text-subtle:  #9AA1AE;
 
-    /* Riel (degradado azul marino, fijo en ambos temas). */
-    -ors-rail-top:     #1C3C72;
-    -ors-rail-bottom:  #15305C;
-    -ors-rail-fg:      #9DB6DA;
-    -ors-rail-active:  rgba(74,144,217,0.20);
+    /* Flotantes */
+    -ors-float:        rgba(255,255,255,0.92);
+    -ors-float-border: rgba(15,21,34,0.06);
+    -ors-pill:         #0F1522;
+    -ors-pill-fg:      #B9C0CE;
+    -ors-pill-line:    rgba(255,255,255,0.14);
+    -ors-scrim:        rgba(15,21,34,0.32);
+    -ors-dash:         #C9D2F5;
+    -ors-drop-bg:      #FBFCFE;
 
-    /* Superficies concretas del spec (modo claro). */
-    -ors-titlebar:  #E7EEF6;
-    -ors-viewer:    #EBF0F6;
-    -ors-sidebar:   #F7FAFD;
-    -ors-tabstrip:  #F4F7FB;
-    -ors-warn-bg:   #FBF5E7;
-    -ors-warn-brd:  #EFE0BC;
-    -ors-warn-fg:   #7A6420;
+    /* Destructivo */
+    -ors-danger-bg:    #FBEAEA;
+    -ors-danger-fg:    #C2372E;
+
+    -fx-font-family: "Instrument Sans", "Segoe UI", sans-serif;
+    -fx-background-color: -ors-surface;
+
+    /* Tokens AtlantaFX: los controles nativos (diálogos, listas, menús)
+       heredan la paleta cobalto sin estilarlos uno a uno. */
+    -color-accent-fg:       -ors-accent;
+    -color-accent-emphasis: -ors-accent;
+    -color-accent-muted:    -ors-accent-light;
+    -color-accent-subtle:   -ors-tint;
+    -color-bg-default:      -ors-panel;
+    -color-bg-overlay:      -ors-panel;
+    -color-bg-subtle:       -ors-surface;
+    -color-bg-inset:        -ors-hover;
+    -color-fg-default:      -ors-text;
+    -color-fg-muted:        -ors-text-muted;
+    -color-fg-subtle:       -ors-text-subtle;
+    -color-border-default:  -ors-border;
+    -color-border-muted:    -ors-border-soft;
+    -color-success-fg:      -ors-ok;
+    -color-danger-fg:       -ors-danger-fg;
 }
 
 /* ============================ PALETA · OSCURO =========================== */
 
 .dark {
-    -ors-brand: #2C6FB8;
-    -ors-mid:   #5FA1E6;
+    -ors-tint:         rgba(61,91,245,0.16);
+    -ors-tint-strong:  rgba(61,91,245,0.32);
+    -ors-ok:           #2FD08C;
 
-    -color-accent-fg:       -ors-mid;
-    -color-accent-emphasis: -ors-brand;
-    -color-accent-muted:    -ors-mid;
-    -color-accent-subtle:   #16273D;
+    -ors-surface:      #12161E;
+    -ors-canvas:       #171C26;
+    -ors-seg:          rgba(255,255,255,0.07);
+    -ors-panel:        #1D242F;
+    -ors-border:       rgba(255,255,255,0.09);
+    -ors-border-soft:  rgba(255,255,255,0.07);
+    -ors-hover:        rgba(255,255,255,0.07);
+    -ors-kbd:          rgba(255,255,255,0.07);
 
-    -ors-rail-top:     #16305C;
-    -ors-rail-bottom:  #0C1A30;
-    -ors-rail-fg:      #9DB6DA;
-    -ors-rail-active:  rgba(74,144,217,0.22);
+    -ors-text:         #E8EBF1;
+    -ors-text-mid:     #C6CDD8;
+    -ors-text-muted:   #9AA4B4;
+    -ors-text-subtle:  #6E7787;
 
-    /* Superficies concretas del spec (modo oscuro). */
-    -ors-titlebar:  #14243B;
-    -ors-viewer:    #0A1420;
-    -ors-sidebar:   #101E30;
-    -ors-tabstrip:  #101E30;
-    -ors-warn-bg:   #2A2410;
-    -ors-warn-brd:  #4A3F1A;
-    -ors-warn-fg:   #D8C583;
+    -ors-float:        rgba(29,36,47,0.94);
+    -ors-float-border: rgba(255,255,255,0.08);
+    -ors-pill:         #1D242F;
+    -ors-pill-fg:      #9AA4B4;
+    -ors-pill-line:    rgba(255,255,255,0.09);
+    -ors-scrim:        rgba(6,9,14,0.45);
+    -ors-dash:         rgba(139,157,255,0.45);
+    -ors-drop-bg:      rgba(61,91,245,0.06);
+
+    -ors-danger-bg:    rgba(194,55,46,0.20);
+    -ors-danger-fg:    #F09A93;
+
+    -color-accent-fg:       -ors-accent-light;
+    -color-accent-emphasis: -ors-accent;
+    -color-accent-muted:    -ors-accent-light;
+    -color-accent-subtle:   -ors-tint;
+    -color-bg-default:      -ors-panel;
+    -color-bg-overlay:      -ors-panel;
+    -color-bg-subtle:       -ors-surface;
+    -color-bg-inset:        -ors-hover;
+    -color-fg-default:      -ors-text;
+    -color-fg-muted:        -ors-text-muted;
+    -color-fg-subtle:       -ors-text-subtle;
+    -color-border-default:  -ors-border;
+    -color-border-muted:    -ors-border-soft;
+    -color-success-fg:      -ors-ok;
+    -color-danger-fg:       -ors-danger-fg;
 }
 
 /* ============================== UTILIDADES ============================== */
@@ -83,265 +132,310 @@
     -fx-font-family: "IBM Plex Mono", "Consolas", monospace;
 }
 
+/* Chip de atajo de teclado (Ctrl K, esc…). */
+.kbd {
+    -fx-font-family: "IBM Plex Mono", "Consolas", monospace;
+    -fx-font-size: 10px;
+    -fx-text-fill: -ors-text-subtle;
+    -fx-background-color: -ors-kbd;
+    -fx-background-radius: 4;
+    -fx-padding: 2 6 2 6;
+}
+
+.kbd.accent {
+    -fx-text-fill: -ors-accent;
+    -fx-background-color: -ors-tint;
+}
+
+.dark .kbd.accent {
+    -fx-text-fill: -ors-accent-light;
+}
+
 /* Iconos Ikonli: color heredado del contexto. */
 .ikonli-font-icon {
-    -fx-icon-color: -color-fg-muted;
-    -fx-icon-size: 17px;
+    -fx-icon-color: -ors-text-mid;
+    -fx-icon-size: 16px;
 }
 
-.button:hover .ikonli-font-icon,
-.menu-button:hover .ikonli-font-icon {
-    -fx-icon-color: -color-fg-default;
-}
+/* ============================ BARRA SUPERIOR ============================ */
 
-.button.accent .ikonli-font-icon,
-.button:default .ikonli-font-icon {
-    -fx-icon-color: -color-fg-emphasis;
-}
-
-/* ============================= RIEL LATERAL ============================= */
-
-.rail {
-    -fx-background-color: linear-gradient(to bottom, -ors-rail-top, -ors-rail-bottom);
-    -fx-padding: 14 0 14 0;
-    -fx-spacing: 2;
-    -fx-alignment: TOP_CENTER;
-}
-
-.rail .brand-mark {
-    -fx-padding: 0 0 12 0;
-}
-
-.rail-button {
-    -fx-background-color: transparent;
-    -fx-background-radius: 10px;
-    -fx-min-width: 58px;
-    -fx-max-width: 58px;
-    -fx-min-height: 56px;
-    -fx-max-height: 56px;
-    -fx-content-display: top;
-    -fx-graphic-text-gap: 5px;
-    -fx-cursor: hand;
-    -fx-text-fill: -ors-rail-fg;
-    -fx-font-size: 9px;
-    -fx-font-weight: 500;
-}
-
-.rail-button .ikonli-font-icon {
-    -fx-icon-color: -ors-rail-fg;
-    -fx-icon-size: 21px;
-}
-
-.rail-button:hover {
-    -fx-background-color: rgba(255,255,255,0.06);
-}
-
-.rail-button:selected {
-    -fx-background-color: -ors-rail-active;
-    -fx-text-fill: white;
-}
-
-.rail-button:selected .ikonli-font-icon {
-    -fx-icon-color: white;
-}
-
-/* Botones inferiores del riel (tema, acerca de): solo icono, más bajos. */
-.rail-icon {
-    -fx-background-color: transparent;
-    -fx-background-radius: 10px;
-    -fx-min-width: 46px;
-    -fx-max-width: 46px;
-    -fx-min-height: 44px;
-    -fx-max-height: 44px;
-    -fx-cursor: hand;
-}
-
-.rail-icon .ikonli-font-icon {
-    -fx-icon-color: -ors-rail-fg;
-    -fx-icon-size: 20px;
-}
-
-.rail-icon:hover {
-    -fx-background-color: rgba(255,255,255,0.06);
-}
-
-.dark .rail-theme .ikonli-font-icon {
-    -fx-icon-color: #F0C674;
-}
-
-/* ========================= BARRA CONTEXTUAL ============================ */
-
-.context-bar {
-    -fx-background-color: -color-bg-default;
-    -fx-border-color: -color-border-default;
-    -fx-border-width: 0 0 1 0;
-    -fx-padding: 10 12 10 12;
-    -fx-spacing: 3;
+.top-bar {
+    -fx-background-color: -ors-surface;
+    -fx-min-height: 52px;
+    -fx-padding: 0 16 0 16;
+    -fx-spacing: 12;
     -fx-alignment: CENTER_LEFT;
 }
 
-.context-bar .section-title {
-    -fx-font-family: "IBM Plex Mono", "Consolas", monospace;
-    -fx-font-size: 10.5px;
-    -fx-font-weight: 600;
-    -fx-text-fill: -color-fg-subtle;
-    -fx-padding: 0 12 0 4;
-}
-
-.context-bar .button,
-.context-bar .menu-button {
-    -fx-background-color: transparent;
-    -fx-background-radius: 7px;
-    -fx-text-fill: -color-fg-default;
-    -fx-graphic-text-gap: 7px;
+.app-name {
     -fx-font-size: 13px;
-    -fx-font-weight: 500;
-    -fx-padding: 7 12 7 12;
-}
-
-.context-bar .button:hover,
-.context-bar .menu-button:hover,
-.context-bar .menu-button:showing {
-    -fx-background-color: -color-bg-inset;
-}
-
-.context-bar .button.accent {
-    -fx-background-color: -color-accent-emphasis;
-    -fx-text-fill: -color-fg-emphasis;
     -fx-font-weight: 600;
-    -fx-effect: dropshadow(gaussian, rgba(26,94,168,0.35), 4, 0, 0, 1);
+    -fx-text-fill: -ors-text;
 }
 
-.context-bar .button.accent:hover {
-    -fx-background-color: derive(-color-accent-emphasis, 8%);
-}
-
-/* Separadores verticales tenues. */
-.context-bar .separator:vertical .line,
-.status-bar .separator:vertical .line {
-    -fx-border-color: -color-border-default;
-    -fx-border-width: 0 1 0 0;
-}
-
-/* =========================== BARRA DE ESTADO =========================== */
-
-.status-bar {
-    -fx-background-color: -color-bg-default;
-    -fx-border-color: -color-border-default;
-    -fx-border-width: 1 0 0 0;
-    -fx-padding: 4 14 4 14;
-    -fx-spacing: 10;
+/* Chip del documento abierto (una pestaña = un chip). */
+.doc-chip {
+    -fx-background-color: -ors-panel;
+    -fx-background-radius: 9;
+    -fx-border-color: -ors-border;
+    -fx-border-radius: 9;
+    -fx-min-height: 32px;
+    -fx-max-height: 32px;
+    -fx-padding: 0 12 0 12;
+    -fx-spacing: 8;
     -fx-alignment: CENTER_LEFT;
+    -fx-cursor: hand;
 }
 
-.status-bar .label {
-    -fx-text-fill: -color-fg-muted;
+.doc-chip .label {
+    -fx-font-size: 12.5px;
+    -fx-font-weight: 500;
+    -fx-text-fill: -ors-text-muted;
+}
+
+.doc-chip:hover .label {
+    -fx-text-fill: -ors-text;
+}
+
+.doc-chip.active .label {
+    -fx-text-fill: -ors-text;
+}
+
+.doc-chip .chip-close {
+    -fx-background-color: transparent;
+    -fx-background-radius: 5;
+    -fx-padding: 2;
+}
+
+.doc-chip .chip-close:hover {
+    -fx-background-color: -ors-hover;
+}
+
+.doc-chip .chip-close .ikonli-font-icon {
+    -fx-icon-size: 11px;
+    -fx-icon-color: -ors-text-subtle;
+}
+
+/* Punto de estado del documento (verde = guardado, ámbar = cambios). */
+.chip-dot {
+    -fx-min-width: 7px;  -fx-max-width: 7px;
+    -fx-min-height: 7px; -fx-max-height: 7px;
+    -fx-background-radius: 50%;
+    -fx-background-color: -ors-ok;
+}
+
+.chip-dot.dirty {
+    -fx-background-color: #E8A13C;
+}
+
+/* Botón "Buscar · Ctrl K" con aspecto de campo. */
+.search-chip {
+    -fx-background-color: -ors-panel;
+    -fx-background-radius: 9;
+    -fx-border-color: -ors-border;
+    -fx-border-radius: 9;
+    -fx-min-height: 32px;
+    -fx-max-height: 32px;
+    -fx-padding: 0 12 0 12;
+    -fx-graphic-text-gap: 7;
     -fx-font-size: 12px;
+    -fx-text-fill: -ors-text-muted;
+    -fx-cursor: hand;
 }
 
-.status-bar .page-value,
-.status-bar .zoom-value {
-    -fx-font-family: "IBM Plex Mono", "Consolas", monospace;
-    -fx-text-fill: -color-fg-default;
+.search-chip:hover {
+    -fx-border-color: derive(-ors-border, -8%);
+}
+
+.search-chip .ikonli-font-icon {
+    -fx-icon-size: 14px;
+    -fx-icon-color: -ors-text-muted;
+}
+
+.search-chip .label {
     -fx-font-size: 12px;
+    -fx-text-fill: -ors-text-muted;
 }
 
-.status-bar .zoom-value {
-    -fx-min-width: 46px;
+.search-chip .label.kbd {
+    -fx-font-size: 10px;
+    -fx-text-fill: -ors-text-subtle;
+}
+
+/* Botón de icono cuadrado (tema, acerca de…). */
+.icon-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 9;
+    -fx-min-width: 32px;  -fx-max-width: 32px;
+    -fx-min-height: 32px; -fx-max-height: 32px;
+    -fx-padding: 0;
+    -fx-cursor: hand;
     -fx-alignment: CENTER;
 }
 
-.status-bar .button {
-    -fx-background-color: transparent;
-    -fx-background-radius: 5px;
-    -fx-padding: 4 6 4 6;
+.icon-button:hover {
+    -fx-background-color: -ors-hover;
 }
 
-.status-bar .button:hover {
-    -fx-background-color: -color-bg-inset;
-}
-
-.status-bar .button .ikonli-font-icon {
+.icon-button .ikonli-font-icon {
     -fx-icon-size: 15px;
+    -fx-icon-color: -ors-text-muted;
 }
 
-/* ========================= BARRA DE BÚSQUEDA ========================== */
+/* ========================= CONTROL SEGMENTADO =========================== */
 
-.search-bar {
-    -fx-background-color: -ors-tabstrip;
-    -fx-border-color: -color-border-default;
-    -fx-border-width: 1 0 0 0;
-    -fx-padding: 8 14 8 14;
-    -fx-spacing: 10;
+.seg-control {
+    -fx-background-color: -ors-seg;
+    -fx-background-radius: 11;
+    -fx-padding: 3;
+    -fx-spacing: 2;
+    -fx-alignment: CENTER;
+}
+
+.seg-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 8;
+    -fx-min-height: 30px; -fx-max-height: 30px;
+    -fx-padding: 0 13 0 13;
+    -fx-font-size: 12.5px;
+    -fx-font-weight: 500;
+    -fx-text-fill: -ors-text-muted;
+    -fx-cursor: hand;
+}
+
+.seg-button:hover {
+    -fx-text-fill: -ors-text;
+}
+
+.seg-button:selected {
+    -fx-background-color: -ors-panel;
+    -fx-text-fill: -ors-text;
+    -fx-font-weight: 600;
+    -fx-padding: 0 14 0 14;
+    -fx-effect: dropshadow(gaussian, rgba(15,21,34,0.12), 3, 0, 0, 1);
+}
+
+/* En oscuro el segmento activo pasa a acento (pantalla D del spec). */
+.dark .seg-button:selected {
+    -fx-background-color: -ors-accent;
+    -fx-text-fill: white;
+    -fx-effect: none;
+}
+
+/* ========================== FILA DE COMANDOS ============================ */
+
+.command-row {
+    -fx-background-color: -ors-surface;
+    -fx-min-height: 40px;
+    -fx-padding: 0 16 0 16;
+    -fx-spacing: 2;
     -fx-alignment: CENTER_LEFT;
 }
 
-/* ===================== PESTAÑAS DE DOCUMENTO ========================== */
-
-.document-tabs {
-    -fx-background-color: -ors-tabstrip;
-}
-
-.document-tabs > .tab-header-area {
-    -fx-padding: 5 8 0 8;
-}
-
-.document-tabs > .tab-header-area > .tab-header-background {
-    -fx-background-color: -ors-tabstrip;
-}
-
-.document-tabs .tab {
+.cmd-button {
     -fx-background-color: transparent;
-    -fx-background-radius: 8 8 0 0;
-    -fx-padding: 6 12 6 12;
-}
-
-.document-tabs .tab:selected {
-    -fx-background-color: -color-bg-default;
-    -fx-border-color: -color-border-default;
-    -fx-border-width: 1 1 0 1;
-    -fx-border-radius: 8 8 0 0;
-}
-
-.document-tabs .tab .tab-label {
-    -fx-text-fill: -color-fg-muted;
+    -fx-background-radius: 8;
+    -fx-min-height: 30px; -fx-max-height: 30px;
+    -fx-padding: 0 11 0 11;
+    -fx-graphic-text-gap: 6;
     -fx-font-size: 12.5px;
-}
-
-.document-tabs .tab:selected .tab-label {
-    -fx-text-fill: -color-fg-default;
     -fx-font-weight: 500;
+    -fx-text-fill: -ors-text-mid;
+    -fx-cursor: hand;
 }
 
-/* ===================== PANEL LATERAL (miniaturas…) ==================== */
-
-.sidebar-tabs {
-    -fx-background-color: -ors-sidebar;
+.cmd-button:hover,
+.cmd-button:showing {
+    -fx-background-color: -ors-hover;
 }
 
-.sidebar-tabs > .tab-header-area > .tab-header-background {
-    -fx-background-color: -ors-sidebar;
+.cmd-button .ikonli-font-icon {
+    -fx-icon-size: 14px;
+    -fx-icon-color: -ors-text-mid;
 }
 
-.sidebar-tabs .tab-label {
-    -fx-font-size: 12.5px;
-    -fx-text-fill: -color-fg-subtle;
+.cmd-button > .arrow-button > .arrow {
+    -fx-background-color: -ors-text-mid;
 }
 
-.sidebar-tabs .tab:selected .tab-label {
-    -fx-text-fill: -color-accent-fg;
+.cmd-button.primary {
+    -fx-background-color: -ors-accent;
+    -fx-text-fill: white;
     -fx-font-weight: 600;
+    -fx-padding: 0 12 0 12;
+    -fx-effect: dropshadow(gaussian, rgba(61,91,245,0.35), 6, 0, 0, 2);
 }
 
-/* ============================== VISOR PDF ============================= */
-
-.pdf-view {
-    -fx-background-color: -ors-viewer;
+.cmd-button.primary:hover {
+    -fx-background-color: -ors-accent-down;
 }
 
+.cmd-button.primary .ikonli-font-icon {
+    -fx-icon-color: white;
+}
+
+.cmd-button:disabled {
+    -fx-opacity: 0.45;
+}
+
+/* Separador vertical tenue entre grupos de comandos. */
+.cmd-sep {
+    -fx-min-width: 1px; -fx-max-width: 1px;
+    -fx-min-height: 18px; -fx-max-height: 18px;
+    -fx-background-color: derive(-ors-seg, -4%);
+}
+
+.dark .cmd-sep {
+    -fx-background-color: rgba(255,255,255,0.10);
+}
+
+/* Indicador «Guardado» (derecha de la fila de comandos). */
+.saved-indicator {
+    -fx-font-size: 12px;
+    -fx-font-weight: 600;
+    -fx-text-fill: -ors-ok;
+    -fx-graphic-text-gap: 5;
+}
+
+.saved-indicator .ikonli-font-icon {
+    -fx-icon-size: 13px;
+    -fx-icon-color: -ors-ok;
+}
+
+.status-note {
+    -fx-font-size: 12px;
+    -fx-text-fill: -ors-text-subtle;
+}
+
+/* ==================== PESTAÑAS DE DOCUMENTO (ocultas) =================== */
+
+/* Los documentos se muestran como chips en la barra superior; la cabecera
+   nativa del TabPane se oculta por completo. */
+.doc-tabs {
+    -fx-background-color: transparent;
+    -fx-tab-max-height: 0;
+}
+
+.doc-tabs > .tab-header-area {
+    visibility: hidden;
+    -fx-max-height: 0;
+    -fx-min-height: 0;
+    -fx-pref-height: 0;
+    -fx-padding: 0;
+}
+
+/* ============================== LIENZO ================================= */
+
+/* Contenedor redondeado del visor: todo lo demás flota encima. */
+.canvas-holder {
+    -fx-background-color: -ors-canvas;
+    -fx-background-radius: 12;
+}
+
+.pdf-view,
 .pdf-scroll,
 .pdf-scroll > .viewport {
-    -fx-background-color: -ors-viewer;
+    -fx-background-color: transparent;
 }
 
 .pdf-scroll {
@@ -349,125 +443,592 @@
     -fx-padding: 0;
 }
 
-/* =============== BARRAS DE SCROLL — anchas y de acento ===============
- * Requisito de accesibilidad (baja visión): anchas, con el pulgar en
- * color de acento y bien contrastado, siempre visible.
- */
+/* ========================== PANELES FLOTANTES =========================== */
 
+.float-panel {
+    -fx-background-color: -ors-float;
+    -fx-background-radius: 14;
+    -fx-border-color: -ors-float-border;
+    -fx-border-radius: 14;
+    -fx-effect: dropshadow(gaussian, rgba(15,21,34,0.14), 30, 0, 0, 10);
+}
+
+.dark .float-panel {
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 34, 0, 0, 12);
+}
+
+/* Mini-segmentado de iconos (Páginas / Marcadores / Formulario). */
+.mini-seg {
+    -fx-background-color: -ors-seg;
+    -fx-background-radius: 9;
+    -fx-padding: 2;
+    -fx-spacing: 2;
+    -fx-alignment: CENTER;
+}
+
+.mini-seg-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 7;
+    -fx-min-width: 30px;  -fx-max-width: 30px;
+    -fx-min-height: 26px; -fx-max-height: 26px;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+
+.mini-seg-button .ikonli-font-icon {
+    -fx-icon-size: 14px;
+    -fx-icon-color: -ors-text-muted;
+}
+
+.mini-seg-button:selected {
+    -fx-background-color: -ors-panel;
+    -fx-effect: dropshadow(gaussian, rgba(15,21,34,0.12), 3, 0, 0, 1);
+}
+
+.mini-seg-button:selected .ikonli-font-icon {
+    -fx-icon-color: -ors-accent;
+}
+
+.dark .mini-seg-button:selected {
+    -fx-background-color: -ors-accent;
+    -fx-effect: none;
+}
+
+.dark .mini-seg-button:selected .ikonli-font-icon {
+    -fx-icon-color: white;
+}
+
+/* Interior de los paneles flotantes: listas y árboles transparentes. */
+.float-panel .list-view,
+.float-panel .tree-view,
+.float-panel .scroll-pane,
+.float-panel .scroll-pane > .viewport,
+.float-panel .list-view .list-cell,
+.float-panel .tree-view .tree-cell {
+    -fx-background-color: transparent;
+}
+
+.float-panel .list-view .list-cell:selected,
+.float-panel .tree-view .tree-cell:selected {
+    -fx-background-color: -ors-tint;
+    -fx-background-radius: 8;
+}
+
+.float-panel .label {
+    -fx-text-fill: -ors-text-mid;
+}
+
+/* Riel de herramientas rápidas (derecha del lienzo). */
+.float-rail {
+    -fx-background-color: -ors-float;
+    -fx-background-radius: 13;
+    -fx-border-color: -ors-float-border;
+    -fx-border-radius: 13;
+    -fx-padding: 7 0 7 0;
+    -fx-spacing: 3;
+    -fx-alignment: TOP_CENTER;
+    -fx-min-width: 46px; -fx-max-width: 46px;
+    -fx-effect: dropshadow(gaussian, rgba(15,21,34,0.14), 30, 0, 0, 10);
+}
+
+.dark .float-rail {
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 34, 0, 0, 12);
+}
+
+.tool-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 9;
+    -fx-min-width: 34px;  -fx-max-width: 34px;
+    -fx-min-height: 34px; -fx-max-height: 34px;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+
+.tool-button:hover {
+    -fx-background-color: -ors-hover;
+}
+
+.tool-button .ikonli-font-icon {
+    -fx-icon-size: 16px;
+    -fx-icon-color: -ors-text-mid;
+}
+
+.tool-button.active,
+.tool-button:selected {
+    -fx-background-color: -ors-accent;
+}
+
+.tool-button.active .ikonli-font-icon,
+.tool-button:selected .ikonli-font-icon {
+    -fx-icon-color: white;
+}
+
+/* ===================== PÍLDORA DE NAVEGACIÓN ============================ */
+
+.nav-pill {
+    -fx-background-color: -ors-pill;
+    -fx-background-radius: 21;
+    -fx-min-height: 42px; -fx-max-height: 42px;
+    -fx-padding: 0 10 0 10;
+    -fx-spacing: 8;
+    -fx-alignment: CENTER;
+    -fx-effect: dropshadow(gaussian, rgba(15,21,34,0.35), 26, 0, 0, 10);
+}
+
+.dark .nav-pill {
+    -fx-border-color: -ors-pill-line;
+    -fx-border-radius: 21;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 26, 0, 0, 10);
+}
+
+.nav-pill .pill-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 8;
+    -fx-min-width: 28px;  -fx-max-width: 28px;
+    -fx-min-height: 28px; -fx-max-height: 28px;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+
+.nav-pill .pill-button:hover {
+    -fx-background-color: rgba(255,255,255,0.10);
+}
+
+.nav-pill .pill-button .ikonli-font-icon {
+    -fx-icon-size: 15px;
+    -fx-icon-color: -ors-pill-fg;
+}
+
+.nav-pill .pill-button:disabled {
+    -fx-opacity: 0.4;
+}
+
+.nav-pill .pill-value {
+    -fx-font-family: "IBM Plex Mono", "Consolas", monospace;
+    -fx-font-size: 12px;
+    -fx-text-fill: white;
+}
+
+.dark .nav-pill .pill-value {
+    -fx-text-fill: -ors-text;
+}
+
+.nav-pill .pill-sep {
+    -fx-min-width: 1px;  -fx-max-width: 1px;
+    -fx-min-height: 18px; -fx-max-height: 18px;
+    -fx-background-color: -ors-pill-line;
+}
+
+/* ======================= PALETA DE COMANDOS (Ctrl+K) ==================== */
+
+.palette-scrim {
+    -fx-background-color: -ors-scrim;
+}
+
+.palette-card {
+    -fx-background-color: -ors-panel;
+    -fx-background-radius: 16;
+    -fx-border-color: -ors-float-border;
+    -fx-border-radius: 16;
+    -fx-effect: dropshadow(gaussian, rgba(15,21,34,0.35), 60, 0, 0, 24);
+    -fx-max-width: 600px;
+}
+
+.palette-header {
+    -fx-padding: 12 18 12 18;
+    -fx-spacing: 11;
+    -fx-alignment: CENTER_LEFT;
+    -fx-border-color: transparent transparent -ors-border-soft transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.palette-field {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 4 0 4 0;
+    -fx-font-size: 14.5px;
+    -fx-text-fill: -ors-text;
+    -fx-prompt-text-fill: -ors-text-subtle;
+    -fx-highlight-fill: -ors-tint-strong;
+}
+
+.palette-header .ikonli-font-icon {
+    -fx-icon-size: 17px;
+    -fx-icon-color: -ors-text-subtle;
+}
+
+.palette-card .scroll-pane,
+.palette-card .scroll-pane > .viewport {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.palette-body {
+    -fx-padding: 8;
+}
+
+.palette-section {
+    -fx-font-family: "IBM Plex Mono", "Consolas", monospace;
+    -fx-font-size: 10px;
+    -fx-font-weight: 600;
+    -fx-text-fill: -ors-text-subtle;
+    -fx-padding: 8 12 5 12;
+}
+
+.palette-item {
+    -fx-background-color: transparent;
+    -fx-background-radius: 10;
+    -fx-min-height: 40px;
+    -fx-padding: 0 12 0 12;
+    -fx-spacing: 11;
+    -fx-alignment: CENTER_LEFT;
+    -fx-cursor: hand;
+}
+
+.palette-item:hover {
+    -fx-background-color: -ors-hover;
+}
+
+.palette-item.selected {
+    -fx-background-color: -ors-tint;
+}
+
+.palette-item .item-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: 500;
+    -fx-text-fill: -ors-text-mid;
+}
+
+.palette-item.selected .item-title {
+    -fx-font-weight: 600;
+    -fx-text-fill: -ors-text;
+}
+
+.palette-item .item-subtitle {
+    -fx-font-size: 11px;
+    -fx-text-fill: -ors-text-muted;
+}
+
+.palette-item .item-shortcut {
+    -fx-font-family: "IBM Plex Mono", "Consolas", monospace;
+    -fx-font-size: 10.5px;
+    -fx-text-fill: -ors-text-subtle;
+}
+
+.palette-item .item-chip {
+    -fx-background-color: -ors-hover;
+    -fx-background-radius: 8;
+    -fx-min-width: 28px;  -fx-max-width: 28px;
+    -fx-min-height: 28px; -fx-max-height: 28px;
+    -fx-alignment: CENTER;
+}
+
+.palette-item .item-chip .ikonli-font-icon {
+    -fx-icon-size: 15px;
+    -fx-icon-color: -ors-text-muted;
+}
+
+.palette-item.selected .item-chip {
+    -fx-background-color: -ors-tint-strong;
+}
+
+.palette-item.selected .item-chip .ikonli-font-icon {
+    -fx-icon-color: -ors-accent;
+}
+
+.dark .palette-item.selected .item-chip .ikonli-font-icon {
+    -fx-icon-color: -ors-accent-light;
+}
+
+/* Coincidencia de texto resaltada dentro del documento. */
+.palette-item .match-highlight {
+    -fx-background-color: #FDF3C7;
+    -fx-background-radius: 3;
+    -fx-font-weight: 600;
+    -fx-text-fill: #0F1522;
+    -fx-padding: 0 2 0 2;
+}
+
+.palette-footer {
+    -fx-padding: 10 18 10 18;
+    -fx-spacing: 14;
+    -fx-alignment: CENTER_LEFT;
+    -fx-border-color: -ors-border-soft transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.palette-footer .label {
+    -fx-font-family: "IBM Plex Mono", "Consolas", monospace;
+    -fx-font-size: 10.5px;
+    -fx-text-fill: -ors-text-subtle;
+}
+
+/* ========================= PANTALLA DE INICIO =========================== */
+
+.welcome {
+    -fx-background-color: -ors-surface;
+}
+
+.drop-zone {
+    -fx-background-color: -ors-drop-bg;
+    -fx-background-radius: 18;
+    -fx-border-color: -ors-dash;
+    -fx-border-width: 2;
+    -fx-border-radius: 18;
+    -fx-border-style: segments(7, 7) line-cap round;
+    -fx-alignment: CENTER;
+    -fx-spacing: 12;
+}
+
+.drop-zone.armed {
+    -fx-border-color: -ors-accent;
+    -fx-background-color: -ors-tint;
+}
+
+.drop-icon {
+    -fx-background-color: -ors-tint;
+    -fx-background-radius: 15;
+    -fx-min-width: 52px;  -fx-max-width: 52px;
+    -fx-min-height: 52px; -fx-max-height: 52px;
+    -fx-alignment: CENTER;
+}
+
+.drop-icon .ikonli-font-icon {
+    -fx-icon-size: 24px;
+    -fx-icon-color: -ors-accent;
+}
+
+.drop-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: 600;
+    -fx-text-fill: -ors-text;
+}
+
+.drop-hint {
+    -fx-font-size: 13px;
+    -fx-text-fill: -ors-text-muted;
+}
+
+/* Chips de acciones rápidas (Unir, Dividir, Firmar, Proteger). */
+.quick-chip {
+    -fx-background-color: -ors-panel;
+    -fx-background-radius: 11;
+    -fx-border-color: -ors-border;
+    -fx-border-radius: 11;
+    -fx-min-height: 38px; -fx-max-height: 38px;
+    -fx-padding: 0 16 0 16;
+    -fx-graphic-text-gap: 8;
+    -fx-font-size: 13px;
+    -fx-font-weight: 500;
+    -fx-text-fill: -ors-text;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(15,21,34,0.06), 3, 0, 0, 1);
+}
+
+.quick-chip:hover {
+    -fx-background-color: -ors-hover;
+}
+
+.quick-chip .ikonli-font-icon {
+    -fx-icon-size: 16px;
+    -fx-icon-color: -ors-accent;
+}
+
+.dark .quick-chip .ikonli-font-icon {
+    -fx-icon-color: -ors-accent-light;
+}
+
+.recent-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: 600;
+    -fx-text-fill: -ors-text;
+}
+
+.recent-caption {
+    -fx-font-size: 12px;
+    -fx-text-fill: -ors-text-subtle;
+}
+
+.recent-card {
+    -fx-background-color: -ors-panel;
+    -fx-background-radius: 14;
+    -fx-border-color: -ors-border;
+    -fx-border-radius: 14;
+    -fx-padding: 14;
+    -fx-spacing: 3;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(15,21,34,0.06), 3, 0, 0, 1);
+}
+
+.recent-card:hover {
+    -fx-border-color: -ors-accent-light;
+    -fx-effect: dropshadow(gaussian, rgba(61,91,245,0.18), 12, 0, 0, 4);
+}
+
+.recent-thumb {
+    -fx-background-color: -ors-hover;
+    -fx-background-radius: 8;
+    -fx-min-height: 110px; -fx-max-height: 110px;
+    -fx-alignment: CENTER;
+}
+
+.recent-thumb .ikonli-font-icon {
+    -fx-icon-size: 30px;
+    -fx-icon-color: -ors-text-subtle;
+}
+
+.recent-name {
+    -fx-font-size: 12.5px;
+    -fx-font-weight: 600;
+    -fx-text-fill: -ors-text;
+}
+
+.recent-meta {
+    -fx-font-size: 11px;
+    -fx-text-fill: -ors-text-subtle;
+}
+
+/* ============================== DIÁLOGOS ================================ */
+
+.app-dialog {
+    -fx-font-family: "Instrument Sans", "Segoe UI", sans-serif;
+    -fx-background-color: -ors-panel;
+}
+
+.app-dialog .header-panel {
+    -fx-background-color: -ors-panel;
+}
+
+.app-dialog .header-panel .label {
+    -fx-text-fill: -ors-text;
+    -fx-font-size: 15px;
+    -fx-font-weight: 600;
+}
+
+.app-dialog .content .label {
+    -fx-text-fill: -ors-text-mid;
+}
+
+.app-dialog > .button-bar {
+    -fx-background-color: -ors-panel;
+}
+
+.app-dialog .button {
+    -fx-background-radius: 9;
+    -fx-font-size: 13px;
+    -fx-font-weight: 500;
+    -fx-cursor: hand;
+}
+
+.app-dialog .button:default {
+    -fx-background-color: -ors-accent;
+    -fx-text-fill: white;
+    -fx-font-weight: 600;
+    -fx-effect: dropshadow(gaussian, rgba(61,91,245,0.35), 6, 0, 0, 2);
+}
+
+.app-dialog .button:default:hover {
+    -fx-background-color: -ors-accent-down;
+}
+
+/* Cabecera con "chip" de icono (diálogos con gráfico). */
+.dialog-icon-chip {
+    -fx-background-color: -ors-tint;
+    -fx-background-radius: 10;
+    -fx-min-width: 34px;  -fx-max-width: 34px;
+    -fx-min-height: 34px; -fx-max-height: 34px;
+    -fx-alignment: CENTER;
+}
+
+.dialog-icon-chip .ikonli-font-icon {
+    -fx-icon-color: -ors-accent;
+    -fx-icon-size: 17px;
+}
+
+.dark .dialog-icon-chip .ikonli-font-icon {
+    -fx-icon-color: -ors-accent-light;
+}
+
+/* Aviso tipo "info" (p. ej. PIN del DNIe). */
+.info-note {
+    -fx-background-color: -ors-tint;
+    -fx-border-color: -ors-tint-strong;
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-padding: 10 12 10 12;
+}
+
+.info-note .label {
+    -fx-text-fill: -ors-text-mid;
+    -fx-font-size: 11.5px;
+}
+
+.info-note .ikonli-font-icon {
+    -fx-icon-color: -ors-accent;
+}
+
+/* ========================= CONTROLES GENERALES ========================== */
+
+.text-field,
+.password-field {
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+}
+
+.check-box .box,
+.combo-box .combo-box-base {
+    -fx-background-radius: 7;
+}
+
+/* Barras de scroll: finas y silenciosas, presentes pero sin cromado. */
 .scroll-bar:vertical {
-    -fx-pref-width: 14px;
+    -fx-pref-width: 11px;
 }
 
 .scroll-bar:horizontal {
-    -fx-pref-height: 14px;
+    -fx-pref-height: 11px;
 }
 
 .scroll-bar {
-    -fx-background-color: -color-bg-inset;
-    -fx-background-radius: 8px;
+    -fx-background-color: transparent;
+}
+
+.scroll-bar .track {
+    -fx-background-color: transparent;
 }
 
 .scroll-bar .thumb {
-    -fx-background-color: -ors-mid;
-    -fx-background-radius: 8px;
+    -fx-background-color: rgba(15,21,34,0.22);
+    -fx-background-radius: 8;
     -fx-background-insets: 2;
 }
 
+.dark .scroll-bar .thumb {
+    -fx-background-color: rgba(255,255,255,0.22);
+}
+
 .scroll-bar .thumb:hover {
-    -fx-background-color: -ors-brand;
+    -fx-background-color: rgba(15,21,34,0.38);
+}
+
+.dark .scroll-bar .thumb:hover {
+    -fx-background-color: rgba(255,255,255,0.38);
 }
 
 .scroll-bar .thumb:pressed {
-    -fx-background-color: -ors-deep;
+    -fx-background-color: -ors-accent;
 }
 
 .scroll-bar .increment-button,
 .scroll-bar .decrement-button {
     -fx-background-color: transparent;
-    -fx-padding: 3;
+    -fx-padding: 2;
 }
 
 .scroll-bar .increment-arrow,
 .scroll-bar .decrement-arrow {
-    -fx-background-color: -color-fg-subtle;
-    -fx-padding: 3px;
-}
-
-/* ============================== DIÁLOGOS ============================== */
-
-.app-dialog {
-    -fx-font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-    -fx-background-color: -color-bg-default;
-}
-
-.app-dialog .header-panel {
-    -fx-background-color: -color-bg-default;
-}
-
-.app-dialog .header-panel .label {
-    -fx-text-fill: -color-fg-default;
-    -fx-font-size: 15px;
-    -fx-font-weight: 700;
-}
-
-.app-dialog > .button-bar {
-    -fx-background-color: derive(-color-bg-subtle, 1%);
-}
-
-.app-dialog .content .label {
-    -fx-text-fill: -color-fg-default;
-}
-
-/* Cabecera con "chip" de icono (diálogos con gráfico). */
-.dialog-icon-chip {
-    -fx-background-color: -color-accent-subtle;
-    -fx-background-radius: 8px;
-    -fx-min-width: 34px;
-    -fx-min-height: 34px;
-    -fx-max-width: 34px;
-    -fx-max-height: 34px;
-    -fx-alignment: CENTER;
-}
-
-.dialog-icon-chip .ikonli-font-icon {
-    -fx-icon-color: -color-accent-fg;
-    -fx-icon-size: 19px;
-}
-
-/* Aviso tipo "info" (p. ej. PIN del DNIe). */
-.info-note {
-    -fx-background-color: -ors-warn-bg;
-    -fx-border-color: -ors-warn-brd;
-    -fx-border-width: 1;
-    -fx-border-radius: 8px;
-    -fx-background-radius: 8px;
-    -fx-padding: 10 12 10 12;
-}
-
-.info-note .label {
-    -fx-text-fill: -ors-warn-fg;
-    -fx-font-size: 11.5px;
-}
-
-/* =========================== PANTALLA DE INICIO ======================= */
-
-.welcome {
-    -fx-background-color: -ors-tabstrip;
-}
-
-.welcome-subtitle {
-    -fx-text-fill: -color-fg-muted;
-    -fx-font-size: 14px;
-}
-
-.welcome-hint {
-    -fx-text-fill: -color-fg-subtle;
-    -fx-font-size: 13px;
-}
-
-.welcome-recent-title {
-    -fx-font-family: "IBM Plex Mono", "Consolas", monospace;
-    -fx-font-size: 10.5px;
-    -fx-font-weight: 600;
-    -fx-text-fill: -color-fg-subtle;
+    -fx-background-color: transparent;
+    -fx-padding: 0;
 }
