@@ -79,17 +79,19 @@ class PAdESSignerTest {
     }
 
     @Test
-    void fallsBackToBaselineBWhenTsaUnreachable() throws Exception {
+    void fallsBackToBaselineBWhenAllTsasUnreachable() throws Exception {
         Path keystore = testKeystore();
         Path output = tempDir.resolve("fallback.pdf");
         try (SignatureTokenConnection token = SigningTokens.pkcs12(keystore, PASSWORD)) {
             DSSPrivateKeyEntry key = token.getKeys().get(0);
             SignSpec spec = new SignSpec(samplePdf(), output,
                     "http://tsa.invalid.local/tsr", "Prueba", "Madrid", null);
-            SignResult result = new PAdESSigner().sign(token, key, spec);
-            assertFalse(result.timestamped(), "un TSA inalcanzable debe degradar a PAdES-B");
+            // Sin TSA de reserva alcanzable, la firma debe degradar a PAdES-B.
+            SignResult result = new PAdESSigner(java.util.List.of()).sign(token, key, spec);
+            assertFalse(result.timestamped(),
+                    "si ninguna TSA responde, debe degradar a PAdES-B");
         }
-        assertTrue(Files.exists(output));
+        assertTrue(Files.exists(output), "aun sin sello, debe generarse el PDF firmado");
     }
 
     @Test

@@ -1643,8 +1643,12 @@ public final class MainView {
 
     // ------------------------------------------------------------- firma
 
-    /** TSA por defecto (RFC 3161). Si falla o no hay red, se firma en PAdES-B. */
-    private static final String DEFAULT_TSA_URL = "https://freetsa.org/tsr";
+    /**
+     * TSA por defecto (RFC 3161), gratuita y fiable. Si falla o no hay red,
+     * {@link PAdESSigner} prueba otras TSA de reserva y, en último caso, firma
+     * en PAdES-B sin sello.
+     */
+    private static final String DEFAULT_TSA_URL = "http://timestamp.digicert.com";
 
     private void validateSignatures() {
         if (!state.hasDocument()) {

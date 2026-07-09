@@ -2,6 +2,8 @@ package com.orsconsulting.orssuitepdf.signing;
 
 import java.awt.Font;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import eu.europa.esig.dss.enumerations.SignatureLevel;
 import eu.europa.esig.dss.model.DSSDocument;
@@ -39,31 +41,81 @@ import eu.europa.esig.dss.validation.CommonCertificateVerifier;
 public final class PAdESSigner {
 
     /** Timeout corto para el TSA (ms), según ADR-002 (3–5 s). */
-    private static final int TSA_TIMEOUT_MS = 4000;
+    private static final int TSA_TIMEOUT_MS = 5000;
+
+    /**
+     * Autoridades de sellado de tiempo (RFC 3161) de reserva, gratuitas y
+     * fiables, que se prueban en orden si la TSA indicada en el
+     * {@link SignSpec} no responde. Así un TSA caído no hace que la firma
+     * pierda el sello de tiempo silenciosamente.
+     */
+    private static final List<String> DEFAULT_FALLBACK_TSAS = List.of(
+            "http://timestamp.digicert.com",
+            "http://timestamp.sectigo.com",
+            "http://rfc3161.ai.moda");
+
+    private final List<String> fallbackTsas;
+
+    /** Firmante con la lista de TSA de reserva por defecto. */
+    public PAdESSigner() {
+        this(DEFAULT_FALLBACK_TSAS);
+    }
+
+    /**
+     * Permite fijar la lista de TSA de reserva (útil en pruebas para forzar de
+     * forma determinista la degradación a PAdES-B sin depender de la red).
+     */
+    public PAdESSigner(List<String> fallbackTsas) {
+        this.fallbackTsas = List.copyOf(fallbackTsas);
+    }
 
     /**
      * Firma con el token y la clave indicados. Nunca lanza por falta de red:
      * en ese caso degrada a PAdES-B. Solo lanza {@link SigningException} ante
      * errores no recuperables.
+     *
+     * <p>La clave se usa <strong>una sola vez</strong> ({@code token.sign}),
+     * de modo que con DNIe/tarjeta el PIN se pide una única vez aunque haya que
+     * probar varias TSA: el valor de firma se reutiliza para ensamblar el
+     * documento con cada TSA candidata y, si todas fallan, en nivel B.</p>
      */
     public SignResult sign(SignatureTokenConnection token, DSSPrivateKeyEntry key, SignSpec spec)
             throws SigningException {
         try {
             DSSDocument document = new FileDocument(spec.pdf().toFile());
+            PAdESSignatureParameters parameters = buildParameters(key, spec);
+            CertificateVerifier verifier = new CommonCertificateVerifier();
+            PAdESService service = new PAdESService(verifier);
 
+            // El valor de firma se calcula para un nivel concreto; DSS no acepta
+            // reutilizar el de B para ensamblar en T. Por eso, si se pide sello,
+            // se firma en T y solo si TODAS las TSA fallan se recalcula para B.
             if (spec.requestsTimestamp()) {
-                try {
-                    DSSDocument signed = doSign(document, key, token,
-                            SignatureLevel.PAdES_BASELINE_T, spec);
-                    signed.save(spec.output().toString());
-                    return new SignResult(spec.output(), true);
-                } catch (Exception timestampFailure) {
-                    // Sin conexión o TSA no disponible: se degrada a B (offline).
+                parameters.setSignatureLevel(SignatureLevel.PAdES_BASELINE_T);
+                ToBeSigned dataToSign = service.getDataToSign(document, parameters);
+                SignatureValue signatureValue =
+                        token.sign(dataToSign, parameters.getDigestAlgorithm(), key);
+                for (String tsa : candidateTsas(spec)) {
+                    try {
+                        service.setTspSource(new OnlineTSPSource(tsa, timeoutLoader()));
+                        // Mismo nivel T y mismo valor de firma en cada intento:
+                        // reutilizarlo entre TSA es válido (el sello es un
+                        // atributo no firmado), así que el PIN se pidió una vez.
+                        DSSDocument signed = service.signDocument(document, parameters, signatureValue);
+                        signed.save(spec.output().toString());
+                        return new SignResult(spec.output(), true);
+                    } catch (Exception timestampFailure) {
+                        // TSA caída o sin red: se prueba la siguiente.
+                    }
                 }
+                // Ninguna TSA respondió: se degrada a B (nueva firma en nivel B).
             }
 
-            DSSDocument signed = doSign(document, key, token,
-                    SignatureLevel.PAdES_BASELINE_B, spec);
+            parameters.setSignatureLevel(SignatureLevel.PAdES_BASELINE_B);
+            ToBeSigned dataToSign = service.getDataToSign(document, parameters);
+            SignatureValue signatureValue =
+                    token.sign(dataToSign, parameters.getDigestAlgorithm(), key);
+            DSSDocument signed = service.signDocument(document, parameters, signatureValue);
             signed.save(spec.output().toString());
             return new SignResult(spec.output(), false);
 
@@ -72,11 +124,22 @@ public final class PAdESSigner {
         }
     }
 
-    private DSSDocument doSign(DSSDocument document, DSSPrivateKeyEntry key,
-                               SignatureTokenConnection token, SignatureLevel level,
-                               SignSpec spec) {
+    /** TSA a probar en orden: la indicada por el usuario primero, luego las de reserva. */
+    private List<String> candidateTsas(SignSpec spec) {
+        List<String> tsas = new ArrayList<>();
+        if (spec.tsaUrl() != null && !spec.tsaUrl().isBlank()) {
+            tsas.add(spec.tsaUrl().trim());
+        }
+        for (String tsa : fallbackTsas) {
+            if (!tsas.contains(tsa)) {
+                tsas.add(tsa);
+            }
+        }
+        return tsas;
+    }
+
+    private PAdESSignatureParameters buildParameters(DSSPrivateKeyEntry key, SignSpec spec) {
         PAdESSignatureParameters parameters = new PAdESSignatureParameters();
-        parameters.setSignatureLevel(level);
         parameters.setSigningCertificate(key.getCertificate());
         parameters.setCertificateChain(key.getCertificateChain());
         if (spec.reason() != null && !spec.reason().isBlank()) {
@@ -88,16 +151,7 @@ public final class PAdESSigner {
         if (spec.visible() != null) {
             parameters.setImageParameters(buildImageParameters(spec.visible(), key));
         }
-
-        CertificateVerifier verifier = new CommonCertificateVerifier();
-        PAdESService service = new PAdESService(verifier);
-        if (level == SignatureLevel.PAdES_BASELINE_T) {
-            service.setTspSource(new OnlineTSPSource(spec.tsaUrl(), timeoutLoader()));
-        }
-
-        ToBeSigned dataToSign = service.getDataToSign(document, parameters);
-        SignatureValue signatureValue = token.sign(dataToSign, parameters.getDigestAlgorithm(), key);
-        return service.signDocument(document, parameters, signatureValue);
+        return parameters;
     }
 
     private SignatureImageParameters buildImageParameters(VisibleSignature visible,
