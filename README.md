@@ -1,4 +1,29 @@
-# ORS Suite PDF
+<p align="center">
+  <img src="assets/logo-horizontal.png" alt="ORS Suite PDF" width="440">
+</p>
+
+<p align="center">
+  <strong>Editor de PDF profesional para Windows · offline-first · gratuito</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/davidmorrom/ORSSuitePDF/releases/latest">
+    <img src="https://img.shields.io/github/v/release/davidmorrom/ORSSuitePDF?label=Descargar%20instalador&color=1A5EA8&style=for-the-badge" alt="Descargar la última versión">
+  </a>
+</p>
+
+## ⬇️ Descargar
+
+Descarga el instalador de Windows desde la página de
+**[Releases](https://github.com/davidmorrom/ORSSuitePDF/releases/latest)** —
+no necesitas el código fuente. Ejecuta el `.exe`; incluye todo lo necesario
+(Java embebido y datos de OCR), no hay que instalar nada más.
+
+> **Nota:** al no llevar certificado de firma de código, Windows SmartScreen
+> puede mostrar un aviso la primera vez. Pulsa **Más información → Ejecutar de
+> todos modos**. No afecta a la instalación ni al uso.
+
+Requisitos: Windows 10/11 (64 bits).
 
 ## Copyright
 © 2026 David — ORS Consulting. Todos los derechos reservados.
@@ -10,8 +35,6 @@ para reutilizarlo fuera de la propia plataforma. Si quieres usar parte de
 este código, contacta antes con el autor.
 
 ---
-
-Editor de PDF profesional para escritorio, offline-first, gratuito.
 
 Unir, dividir, rotar, marcadores, formularios, anotaciones, firma digital
 con validez legal (PAdES), edición de texto existente y OCR.
