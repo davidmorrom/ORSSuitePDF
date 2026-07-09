@@ -69,11 +69,20 @@ xcopy /e /i tessdata target\stage\tessdata
 ```
 
 ### Instalador .exe (requiere WiX)
-Necesita **WiX Toolset 3.x** (`choco install wixtoolset`). Se usa
-`--runtime-image` apuntando a un JDK completo para incluir en el runtime los
-proveedores criptográficos `jdk.crypto.mscapi` (almacén de Windows) y
-`jdk.crypto.cryptoki` (DNIe/PKCS#11), que la firma necesita y que el jlink por
-defecto omite. `-Dtessdata.dir=$APPDIR\tessdata` localiza los datos de OCR:
+La forma recomendada es el script, que encapsula todos los parámetros:
+```
+scripts\package-windows.cmd 1.0.1
+```
+Genera `target\installer\ORS Suite PDF-<version>.exe`. El instalador lleva un
+**UpgradeCode fijo**, así que un instalador con una **versión superior
+actualiza en su sitio** al ya instalado (sin desinstalar); por eso hay que
+subir la versión en cada release.
+
+Detalle del comando que ejecuta el script (necesita **WiX Toolset 3.x**,
+`choco install wixtoolset`). Usa `--runtime-image` apuntando a un JDK completo
+para incluir los proveedores criptográficos `jdk.crypto.mscapi` (almacén de
+Windows) y `jdk.crypto.cryptoki` (DNIe/PKCS#11), que la firma necesita y que el
+jlink por defecto omite; `-Dtessdata.dir=$APPDIR\tessdata` localiza el OCR:
 ```
 jpackage --type exe ^
   --name "ORS Suite PDF" ^
@@ -84,6 +93,7 @@ jpackage --type exe ^
   --app-version 1.0.0 --vendor "ORS Consulting" ^
   --description "Editor de PDF profesional offline-first" ^
   --dest target/installer ^
+  --win-upgrade-uuid b23ad378-22ac-4b04-a9b4-fb3fd3f74db0 ^
   --java-options "--enable-native-access=ALL-UNNAMED" ^
   --java-options "-Dtessdata.dir=$APPDIR\tessdata" ^
   --win-shortcut --win-menu --win-dir-chooser
