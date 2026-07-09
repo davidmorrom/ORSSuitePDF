@@ -1,5 +1,16 @@
 # ORS Suite PDF
 
+## Copyright
+© 2026 David — ORS Consulting. Todos los derechos reservados.
+
+Este repositorio se publica con fines de portfolio/demostración. No se
+concede ninguna licencia de uso, copia, modificación o distribución sobre
+este código. Ver un repositorio público en GitHub no implica autorización
+para reutilizarlo fuera de la propia plataforma. Si quieres usar parte de
+este código, contacta antes con el autor.
+
+---
+
 Editor de PDF profesional para escritorio, offline-first, gratuito.
 
 Unir, dividir, rotar, marcadores, formularios, anotaciones, firma digital
@@ -15,12 +26,13 @@ desarrollar ni usar la app.
 
 ## Requisitos
 - JDK 21+
-- Maven 3.9+
+- Maven 3.9+ (opcional: el proyecto incluye Maven Wrapper, `./mvnw`)
 - Para compilar el instalador en Windows: WiX Toolset
 
 ## Desarrollo
 ```
-mvn clean javafx:run
+./mvnw clean javafx:run     # o mvn clean javafx:run si Maven está instalado
+./mvnw test                 # ejecuta las pruebas
 ```
 
 ## Compilar a .exe (u otros instaladores)
@@ -42,9 +54,14 @@ la instalación ni al uso de la app una vez instalada.
 ## Estructura
 Ver las decisiones de arquitectura documentadas en `docs/adr/`.
 
-## Roadmap sugerido
-1. MVP: visor PDF + unir/dividir + marcadores (PDFBox + JavaFX)
-2. Formularios (AcroForms) + firma visual
-3. OCR + edición de texto básica (Tess4J + PDFBox)
-4. Firma PAdES con fallback offline (DSS)
-5. Empaquetado a instalador (.exe/.dmg/.deb) con jpackage
+## Roadmap
+1. ✅ MVP: visor PDF (navegación + zoom), unir/extraer, rotar/mover/eliminar
+   páginas y editor de marcadores (PDFBox + JavaFX)
+2. ⬜ Formularios (AcroForms) + firma visual
+3. ⬜ OCR + edición de texto básica (Tess4J + PDFBox)
+4. ⬜ Firma PAdES con fallback offline (DSS)
+5. ⬜ Empaquetado a instalador (.exe/.dmg/.deb) con jpackage
+
+Las fases 2–4 reincorporarán las dependencias de firma (DSS) y OCR
+(Tess4J) cuando se aborden; el MVP solo depende de JavaFX, AtlantaFX y
+PDFBox.
