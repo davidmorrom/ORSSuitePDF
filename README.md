@@ -124,15 +124,21 @@ Ver las decisiones de arquitectura documentadas en `docs/adr/`.
 5. ✅ Empaquetado a instalador Windows (.exe) con jpackage + WiX
 
 ### Extras
-- ✅ Visor con **desplazamiento vertical continuo**.
+- ✅ Visor con **desplazamiento vertical continuo** y **panel de miniaturas**
+   con reordenación por arrastre.
 - ✅ **Gestor de pestañas**: varios PDF abiertos a la vez, uno por pestaña.
 - ✅ **Firma con el almacén de Windows** (certificados instalados y **DNIe**);
    el PIN lo solicita el sistema. Opción de **firma visible** dibujando el
-   recuadro sobre la página.
+   recuadro sobre la página. **Validación** de firmas existentes.
 - ✅ **Unir** con pantalla de revisión (ordenar/quitar/añadir documentos).
 - ✅ **Impresión** con diálogo nativo (impresoras y Microsoft Print to PDF).
 - ✅ **Exportar** a texto e imágenes (nativo) y a DOCX/PPTX/ODT/RTF vía
    LibreOffice si está instalado (ver ADR-004).
+- ✅ **Redacción segura** (elimina el contenido de verdad), **anotaciones**
+   (resaltar/recuadro/nota), **buscar texto** (Ctrl+F), **proteger con
+   contraseña**, **marca de agua** y **numeración**.
+- ✅ **Archivos recientes**, **arrastrar y soltar** para abrir, y memoria de
+   la última carpeta usada.
 
 La firma usa el almacén de certificados de Windows (incluido el DNIe al
 insertar la tarjeta). Ningún certificado ni clave se versiona (ver
