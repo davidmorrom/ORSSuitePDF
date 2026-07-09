@@ -151,6 +151,9 @@ public final class MainView {
         saveAs.setOnAction(e -> saveAs());
         MenuItem merge = new MenuItem("Unir PDF…");
         merge.setOnAction(e -> mergeDocuments());
+        MenuItem print = new MenuItem("Imprimir…");
+        print.setAccelerator(new KeyCharacterCombination("P", KeyCombination.SHORTCUT_DOWN));
+        print.setOnAction(e -> printDocument());
         MenuItem exit = new MenuItem("Salir");
         exit.setOnAction(e -> {
             if (confirmDiscardChanges()) {
@@ -158,7 +161,7 @@ public final class MainView {
             }
         });
         file.getItems().addAll(open, save, saveAs, new SeparatorMenuItem(),
-                merge, new SeparatorMenuItem(), exit);
+                merge, print, new SeparatorMenuItem(), exit);
 
         Menu page = new Menu("Página");
         MenuItem rotL = new MenuItem("Rotar a la izquierda");
@@ -536,6 +539,29 @@ public final class MainView {
                     event.consume();
                 });
         dialog.showAndWait();
+    }
+
+    // --------------------------------------------------------- impresión
+
+    private void printDocument() {
+        if (!state.hasDocument()) {
+            return;
+        }
+        PdfDocument document = state.getDocument();
+        statusLabel.setText("Abriendo el diálogo de impresión…");
+        runBackground(() -> {
+            java.awt.print.PrinterJob job = java.awt.print.PrinterJob.getPrinterJob();
+            job.setJobName(document.source() != null
+                    ? document.source().getFileName().toString() : "ORS Suite PDF");
+            job.setPageable(new org.apache.pdfbox.printing.PDFPageable(document.pdbox()));
+            // Diálogo nativo con selección de impresora (incluye Microsoft Print to PDF).
+            if (job.printDialog()) {
+                job.print();
+                Platform.runLater(() -> statusLabel.setText("Documento enviado a la impresora"));
+            } else {
+                Platform.runLater(() -> statusLabel.setText("Impresión cancelada"));
+            }
+        }, "No se pudo imprimir el documento");
     }
 
     // ------------------------------------------------------------- firma
