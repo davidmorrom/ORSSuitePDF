@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.prefs.Preferences;
 
+import com.orsconsulting.orssuitepdf.core.AnnotationService;
 import com.orsconsulting.orssuitepdf.core.ExportService;
 import com.orsconsulting.orssuitepdf.core.PdfDocument;
 import com.orsconsulting.orssuitepdf.core.PdfOperations;
@@ -197,6 +198,17 @@ public final class MainView {
         textItem.setOnAction(e -> insertText());
         insert.getItems().addAll(stamp, textItem);
 
+        Menu annotate = new Menu("Anotar");
+        MenuItem hl = new MenuItem("Resaltar zona");
+        hl.setOnAction(e -> annotate("Resaltado añadido",
+                (d, r) -> AnnotationService.highlight(d, r.page(), r.x(), r.y(), r.width(), r.height())));
+        MenuItem rect = new MenuItem("Recuadro");
+        rect.setOnAction(e -> annotate("Recuadro añadido",
+                (d, r) -> AnnotationService.rectangle(d, r.page(), r.x(), r.y(), r.width(), r.height())));
+        MenuItem note = new MenuItem("Nota…");
+        note.setOnAction(e -> annotateNote());
+        annotate.getItems().addAll(hl, rect, note);
+
         Menu tools = new Menu("Herramientas");
         MenuItem ocr = new MenuItem("OCR de la página actual");
         ocr.setOnAction(e -> ocrCurrentPage());
@@ -214,7 +226,7 @@ public final class MainView {
         about.setOnAction(e -> showAbout());
         help.getItems().add(about);
 
-        return new MenuBar(file, page, insert, tools, sign, help);
+        return new MenuBar(file, page, insert, annotate, tools, sign, help);
     }
 
     private ToolBar buildToolBar() {
@@ -814,6 +826,64 @@ public final class MainView {
             return "documento";
         }
         return source.getFileName().toString().replaceFirst("(?i)\\.pdf$", "");
+    }
+
+    // --------------------------------------------------------- anotaciones
+
+    @FunctionalInterface
+    private interface RegionAction {
+        void apply(PdfDocument document, PdfView.PageRegion region) throws Exception;
+    }
+
+    private void annotate(String successMessage, RegionAction action) {
+        if (!state.hasDocument()) {
+            return;
+        }
+        statusLabel.setText("Dibuja la zona a anotar sobre la página…");
+        pdfView.beginRegionSelection(region -> {
+            if (region == null) {
+                statusLabel.setText("Anotación cancelada");
+                return;
+            }
+            try {
+                action.apply(state.getDocument(), region);
+                state.markMutated();
+                statusLabel.setText(successMessage);
+            } catch (Exception ex) {
+                showError("No se pudo anotar", ex.getMessage());
+            }
+        });
+    }
+
+    private void annotateNote() {
+        if (!state.hasDocument()) {
+            return;
+        }
+        statusLabel.setText("Dibuja dónde colocar la nota…");
+        pdfView.beginRegionSelection(region -> {
+            if (region == null) {
+                statusLabel.setText("Nota cancelada");
+                return;
+            }
+            javafx.scene.control.TextInputDialog dialog = new javafx.scene.control.TextInputDialog();
+            dialog.setTitle("Nota");
+            dialog.setHeaderText("Texto de la nota");
+            dialog.setContentText("Nota:");
+            dialog.initOwner(stage);
+            Optional<String> text = dialog.showAndWait();
+            if (text.isEmpty() || text.get().isBlank()) {
+                statusLabel.setText("Nota cancelada");
+                return;
+            }
+            try {
+                AnnotationService.note(state.getDocument(), region.page(),
+                        region.x(), region.y(), text.get().trim());
+                state.markMutated();
+                statusLabel.setText("Nota añadida");
+            } catch (Exception ex) {
+                showError("No se pudo añadir la nota", ex.getMessage());
+            }
+        });
     }
 
     // --------------------------------------------------------- redacción
