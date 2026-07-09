@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import com.orsconsulting.orssuitepdf.core.ExportService;
 import com.orsconsulting.orssuitepdf.core.PdfDocument;
 import com.orsconsulting.orssuitepdf.core.PdfOperations;
 import com.orsconsulting.orssuitepdf.core.StampService;
@@ -160,6 +161,7 @@ public final class MainView {
         MenuItem print = new MenuItem("Imprimir…");
         print.setAccelerator(new KeyCharacterCombination("P", KeyCombination.SHORTCUT_DOWN));
         print.setOnAction(e -> printDocument());
+        Menu export = buildExportMenu();
         MenuItem exit = new MenuItem("Salir");
         exit.setOnAction(e -> {
             if (confirmDiscardChanges()) {
@@ -167,7 +169,7 @@ public final class MainView {
             }
         });
         file.getItems().addAll(open, save, saveAs, new SeparatorMenuItem(),
-                merge, print, new SeparatorMenuItem(), exit);
+                merge, print, export, new SeparatorMenuItem(), exit);
 
         Menu page = new Menu("Página");
         MenuItem rotL = new MenuItem("Rotar a la izquierda");
@@ -641,6 +643,103 @@ public final class MainView {
                     event.consume();
                 });
         dialog.showAndWait();
+    }
+
+    // ------------------------------------------------------- exportación
+
+    private Menu buildExportMenu() {
+        Menu export = new Menu("Exportar");
+        MenuItem txt = new MenuItem("Texto (.txt)…");
+        txt.setOnAction(e -> exportAsText());
+        MenuItem img = new MenuItem("Imágenes (PNG)…");
+        img.setOnAction(e -> exportAsImages());
+        export.getItems().addAll(txt, img, new SeparatorMenuItem());
+
+        boolean office = ExportService.isOfficeConversionAvailable();
+        for (String[] fmt : new String[][]{
+                {"Word (.docx)…", "docx"}, {"PowerPoint (.pptx)…", "pptx"},
+                {"OpenDocument texto (.odt)…", "odt"}, {"RTF (.rtf)…", "rtf"}}) {
+            MenuItem item = new MenuItem(fmt[0]);
+            item.setDisable(!office);
+            item.setOnAction(e -> exportWithLibreOffice(fmt[1]));
+            export.getItems().add(item);
+        }
+        if (!office) {
+            MenuItem hint = new MenuItem("(instala LibreOffice para DOCX/PPTX/ODT)");
+            hint.setDisable(true);
+            export.getItems().add(hint);
+        }
+        return export;
+    }
+
+    private void exportAsText() {
+        if (!state.hasDocument()) {
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Exportar a texto");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Texto", "*.txt"));
+        chooser.setInitialFileName(baseName() + ".txt");
+        File target = chooser.showSaveDialog(stage);
+        if (target == null) {
+            return;
+        }
+        PdfDocument document = state.getDocument();
+        statusLabel.setText("Exportando texto…");
+        runBackground(() -> {
+            ExportService.exportText(document, target.toPath());
+            Platform.runLater(() -> statusLabel.setText("Texto exportado: " + target.getName()));
+        }, "No se pudo exportar el texto");
+    }
+
+    private void exportAsImages() {
+        if (!state.hasDocument()) {
+            return;
+        }
+        javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
+        chooser.setTitle("Carpeta para las imágenes");
+        File dir = chooser.showDialog(stage);
+        if (dir == null) {
+            return;
+        }
+        PdfDocument document = state.getDocument();
+        String base = baseName();
+        statusLabel.setText("Exportando imágenes…");
+        runBackground(() -> {
+            int count = ExportService.exportImages(document, dir.toPath(), "png", 150f, base);
+            Platform.runLater(() -> statusLabel.setText(count + " imágenes exportadas en " + dir.getName()));
+        }, "No se pudieron exportar las imágenes");
+    }
+
+    private void exportWithLibreOffice(String format) {
+        if (!state.hasDocument()) {
+            return;
+        }
+        Path source = state.getDocument().source();
+        if (source == null || state.isDirty()) {
+            showError("Exportar", "Guarda el documento antes de convertirlo a " + format + ".");
+            return;
+        }
+        javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
+        chooser.setTitle("Carpeta de destino");
+        chooser.setInitialDirectory(source.getParent().toFile());
+        File dir = chooser.showDialog(stage);
+        if (dir == null) {
+            return;
+        }
+        statusLabel.setText("Convirtiendo a " + format + " con LibreOffice…");
+        runBackground(() -> {
+            Path result = ExportService.convertWithLibreOffice(source, format, dir.toPath());
+            Platform.runLater(() -> statusLabel.setText("Exportado: " + result.getFileName()));
+        }, "No se pudo convertir con LibreOffice");
+    }
+
+    private String baseName() {
+        Path source = state.hasDocument() ? state.getDocument().source() : null;
+        if (source == null) {
+            return "documento";
+        }
+        return source.getFileName().toString().replaceFirst("(?i)\\.pdf$", "");
     }
 
     // --------------------------------------------------------- impresión
