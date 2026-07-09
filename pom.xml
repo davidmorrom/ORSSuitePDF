@@ -16,7 +16,12 @@
         <pdfbox.version>3.0.2</pdfbox.version>
         <atlantafx.version>2.0.1</atlantafx.version>
         <tess4j.version>5.11.0</tess4j.version>
-        <dss.version>6.1</dss.version>
+        <!-- DSS con backend OpenPDF: la integración PDFBox de DSS aún depende
+             de PDFBox 2.x, incompatible con el PDFBox 3 del resto de la app.
+             OpenPDF es independiente de PDFBox, así que DSS firma sin
+             conflicto y nuestras operaciones siguen sobre PDFBox 3. Ver
+             ADR-003. -->
+        <dss.version>5.11</dss.version>
         <junit.version>5.10.2</junit.version>
         <!-- Clase JavaFX (Application) para ejecución en desarrollo con
              javafx:run, y lanzadora sin Application para el fat jar / jpackage. -->
@@ -73,7 +78,7 @@
              implementaciones de utilidades y parseo de CRL requeridas. -->
         <dependency>
             <groupId>eu.europa.ec.joinup.sd-dss</groupId>
-            <artifactId>dss-pades-pdfbox</artifactId>
+            <artifactId>dss-pades-openpdf</artifactId>
             <version>${dss.version}</version>
         </dependency>
         <dependency>
