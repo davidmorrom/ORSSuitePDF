@@ -169,6 +169,10 @@
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>${launcher.class}</mainClass>
+                                    <manifestEntries>
+                                        <!-- Pantalla splash al arrancar (se resuelve del propio jar). -->
+                                        <SplashScreen-Image>branding/splash.png</SplashScreen-Image>
+                                    </manifestEntries>
                                 </transformer>
                                 <!-- Fusiona META-INF/services para que el
                                      descubrimiento por ServiceLoader (backend

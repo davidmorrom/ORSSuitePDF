@@ -9,6 +9,7 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -28,20 +29,22 @@ public final class WelcomePane extends VBox {
      * @param onOpenRecent  acción al elegir un reciente
      */
     public WelcomePane(Runnable onOpen, Runnable onMerge,
-                       List<Path> recent, Consumer<Path> onOpenRecent) {
+                       List<Path> recent, Consumer<Path> onOpenRecent, boolean dark) {
         setAlignment(Pos.CENTER);
         setSpacing(24);
         setPadding(new Insets(48));
         setFillWidth(false);
 
-        Label title = new Label("ORS Suite PDF");
-        title.setStyle("-fx-font-size: 28px; -fx-font-weight: bold;");
+        ImageView logo = new ImageView(Branding.horizontalLogo(dark));
+        logo.setPreserveRatio(true);
+        logo.setFitWidth(360);
         Label subtitle = new Label("Editor de PDF profesional, offline-first");
         subtitle.getStyleClass().add("text-muted");
 
         Button open = new Button("Abrir PDF…");
         open.setOnAction(e -> onOpen.run());
         open.setPrefWidth(180);
+        open.setStyle("-fx-background-color: " + Branding.PRIMARY + "; -fx-text-fill: white;");
         Button merge = new Button("Unir PDF…");
         merge.setOnAction(e -> onMerge.run());
         merge.setPrefWidth(180);
@@ -75,6 +78,6 @@ public final class WelcomePane extends VBox {
         VBox.setVgrow(spacerTop, Priority.ALWAYS);
         VBox.setVgrow(spacerBottom, Priority.ALWAYS);
 
-        getChildren().addAll(spacerTop, title, subtitle, actions, hint, recentBox, spacerBottom);
+        getChildren().addAll(spacerTop, logo, subtitle, actions, hint, recentBox, spacerBottom);
     }
 }

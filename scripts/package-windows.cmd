@@ -48,6 +48,7 @@ jpackage --type exe ^
   --vendor "ORS Consulting" ^
   --description "Editor de PDF profesional offline-first" ^
   --dest target\installer ^
+  --icon assets\app.ico ^
   --win-upgrade-uuid %UPGRADE_UUID% ^
   --java-options "--enable-native-access=ALL-UNNAMED" ^
   --java-options "-Dtessdata.dir=$APPDIR\tessdata" ^

@@ -197,7 +197,7 @@ public final class MainView {
         if (empty) {
             List<Path> recent = recentFiles().stream().map(Path::of).toList();
             WelcomePane welcome = new WelcomePane(this::openDocument, this::mergeDocuments,
-                    recent, this::loadInBackground);
+                    recent, this::loadInBackground, prefs.getBoolean(PREF_DARK, false));
             workspace.getChildren().add(welcome);
         }
     }
@@ -456,6 +456,7 @@ public final class MainView {
                 ? new PrimerDark().getUserAgentStylesheet()
                 : new PrimerLight().getUserAgentStylesheet());
         prefs.putBoolean(PREF_DARK, dark);
+        refreshWelcome();
     }
 
     private File lastDirectory() {
@@ -1755,7 +1756,13 @@ public final class MainView {
         alert.setContentText("""
                 Editor de PDF profesional, offline-first.
                 Unir, dividir, rotar, marcadores, formularios,
-                OCR y firma digital PAdES.""");
+                OCR y firma digital PAdES.
+
+                © 2026 ORS Consulting""");
+        javafx.scene.image.ImageView logo = new javafx.scene.image.ImageView(Branding.symbol());
+        logo.setFitWidth(64);
+        logo.setPreserveRatio(true);
+        alert.setGraphic(logo);
         alert.initOwner(stage);
         alert.showAndWait();
     }
