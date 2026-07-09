@@ -1311,6 +1311,9 @@ public final class MainView {
 
     // ------------------------------------------------------------- firma
 
+    /** TSA por defecto (RFC 3161). Si falla o no hay red, se firma en PAdES-B. */
+    private static final String DEFAULT_TSA_URL = "https://freetsa.org/tsr";
+
     private void validateSignatures() {
         if (!state.hasDocument()) {
             return;
@@ -1523,8 +1526,8 @@ public final class MainView {
         reasonField.setPromptText("Motivo (opcional)");
         TextField locationField = new TextField();
         locationField.setPromptText("Lugar (opcional)");
-        TextField tsaField = new TextField("https://freetsa.org/tsr");
-        tsaField.setPromptText("URL de TSA (vacío = sin sello de tiempo)");
+        CheckBox timestampBox = new CheckBox("Añadir sello de tiempo (recomendado)");
+        timestampBox.setSelected(true);
 
         VBox options = new VBox(8,
                 visibleBox,
@@ -1537,7 +1540,7 @@ public final class MainView {
                 new Separator(),
                 labeled("Motivo:", reasonField),
                 labeled("Lugar:", locationField),
-                labeled("Sello de tiempo (TSA):", tsaField));
+                timestampBox);
         options.setPrefWidth(340);
 
         // --- Vista previa en vivo ---
@@ -1597,7 +1600,8 @@ public final class MainView {
                     nifBox.isSelected(),
                     reasonBox.isSelected(), locationBox.isSelected(),
                     dateBox.isSelected(), timeBox.isSelected());
-            return new SignSetup(tsaField.getText(), reasonField.getText(),
+            String tsa = timestampBox.isSelected() ? DEFAULT_TSA_URL : "";
+            return new SignSetup(tsa, reasonField.getText(),
                     locationField.getText(), visibleBox.isSelected(), app);
         });
         return dialog.showAndWait();
