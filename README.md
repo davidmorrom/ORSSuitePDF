@@ -105,7 +105,10 @@ Ver las decisiones de arquitectura documentadas en `docs/adr/`.
 2. ✅ Formularios (AcroForms): leer/rellenar/aplanar campos + inserción de
    imagen/sello visual sobre la página
 3. ✅ OCR de páginas (Tess4J, offline) + inserción de texto sobre la página
-4. ⬜ Firma PAdES con fallback offline (DSS)
+4. ✅ Firma PAdES con DSS (backend OpenPDF, ver ADR-003) y fallback
+   online/offline: PAdES-B-T con sello de tiempo o PAdES-B sin conexión
 5. ⬜ Empaquetado a instalador (.exe/.dmg/.deb) con jpackage
 
-La fase 4 reincorporará la dependencia de firma (DSS) cuando se aborde.
+La firma necesita un certificado PKCS#12 (.p12/.pfx); su contraseña se pide
+en el momento de firmar y no se almacena. Ningún certificado ni clave se
+versiona (ver .gitignore).
