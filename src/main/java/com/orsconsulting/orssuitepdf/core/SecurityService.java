@@ -22,7 +22,21 @@ public final class SecurityService {
      * Se usa la misma como contraseña de propietario.
      */
     public static void protect(PdfDocument document, String password) throws IOException {
+        protect(document, password, true, true);
+    }
+
+    /**
+     * Protege el documento con una contraseña y permisos de uso: si se
+     * deniegan la impresión o la copia de texto, el visor del destinatario
+     * los bloqueará (según el estándar PDF).
+     */
+    public static void protect(PdfDocument document, String password,
+                               boolean allowPrint, boolean allowCopy) throws IOException {
         AccessPermission permissions = new AccessPermission();
+        permissions.setCanPrint(allowPrint);
+        permissions.setCanPrintFaithful(allowPrint);
+        permissions.setCanExtractContent(allowCopy);
+        permissions.setCanExtractForAccessibility(true);
         StandardProtectionPolicy policy =
                 new StandardProtectionPolicy(password, password, permissions);
         policy.setEncryptionKeyLength(256);
