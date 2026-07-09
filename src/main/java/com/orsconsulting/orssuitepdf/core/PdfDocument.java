@@ -89,7 +89,8 @@ public final class PdfDocument implements Closeable {
      * Renderiza una página a un {@link java.awt.image.BufferedImage}, útil para
      * procesos que trabajan con imágenes AWT (p. ej. OCR).
      */
-    public java.awt.image.BufferedImage renderPageImage(int pageIndex, float dpi) throws IOException {
+    public synchronized java.awt.image.BufferedImage renderPageImage(int pageIndex, float dpi)
+            throws IOException {
         if (pageIndex < 0 || pageIndex >= pageCount()) {
             throw new IndexOutOfBoundsException("Página fuera de rango: " + pageIndex);
         }

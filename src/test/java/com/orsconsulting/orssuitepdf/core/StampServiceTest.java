@@ -74,6 +74,20 @@ class StampServiceTest {
     }
 
     @Test
+    void stampTextIsExtractable() throws IOException {
+        Path pdf = samplePdf();
+        try (PDDocument doc = Loader.loadPDF(pdf.toFile())) {
+            StampService.stampText(doc, 0, "Firmado por ORS", 100, 100, 18);
+            doc.save(pdf.toFile());
+        }
+        try (PDDocument doc = Loader.loadPDF(pdf.toFile())) {
+            String extracted = new org.apache.pdfbox.text.PDFTextStripper().getText(doc);
+            assertTrue(extracted.contains("Firmado por ORS"),
+                    "el texto insertado debería extraerse; obtenido: " + extracted.strip());
+        }
+    }
+
+    @Test
     void rejectsInvalidPageAndSize() throws IOException {
         Path image = sampleImage();
         try (PDDocument doc = Loader.loadPDF(samplePdf().toFile())) {

@@ -10,6 +10,7 @@ import java.util.Optional;
 import com.orsconsulting.orssuitepdf.core.PdfDocument;
 import com.orsconsulting.orssuitepdf.core.PdfOperations;
 import com.orsconsulting.orssuitepdf.core.StampService;
+import com.orsconsulting.orssuitepdf.ocr.OcrService;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -30,9 +31,13 @@ import javafx.scene.control.Spinner;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
 import javafx.scene.control.ToolBar;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.KeyCharacterCombination;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.BorderPane;
@@ -162,14 +167,21 @@ public final class MainView {
         Menu insert = new Menu("Insertar");
         MenuItem stamp = new MenuItem("Imagen o sello…");
         stamp.setOnAction(e -> insertImage());
-        insert.getItems().add(stamp);
+        MenuItem textItem = new MenuItem("Texto…");
+        textItem.setOnAction(e -> insertText());
+        insert.getItems().addAll(stamp, textItem);
+
+        Menu tools = new Menu("Herramientas");
+        MenuItem ocr = new MenuItem("OCR de la página actual");
+        ocr.setOnAction(e -> ocrCurrentPage());
+        tools.getItems().add(ocr);
 
         Menu help = new Menu("Ayuda");
         MenuItem about = new MenuItem("Acerca de ORS Suite PDF");
         about.setOnAction(e -> showAbout());
         help.getItems().add(about);
 
-        return new MenuBar(file, page, insert, help);
+        return new MenuBar(file, page, insert, tools, help);
     }
 
     private ToolBar buildToolBar() {
@@ -417,6 +429,92 @@ public final class MainView {
         }
     }
 
+    private void insertText() {
+        if (!state.hasDocument()) {
+            return;
+        }
+        Optional<TextContent> content = askText();
+        if (content.isEmpty()) {
+            return;
+        }
+        int page = state.getCurrentPage();
+        PdfDocument document = state.getDocument();
+        float pageW = document.pageWidth(page);
+        float pageH = document.pageHeight(page);
+        float margin = 36f;
+        float fontSize = content.get().fontSize();
+        String text = content.get().text();
+        // Estimación del recuadro para colocar según la esquina elegida.
+        float approxWidth = Math.min(pageW - 2 * margin, fontSize * 0.5f * text.length());
+
+        float x;
+        float y;
+        switch (content.get().corner()) {
+            case "Inferior derecha" -> { x = pageW - margin - approxWidth; y = margin; }
+            case "Superior izquierda" -> { x = margin; y = pageH - margin - fontSize; }
+            case "Superior derecha" -> { x = pageW - margin - approxWidth; y = pageH - margin - fontSize; }
+            case "Centro" -> { x = (pageW - approxWidth) / 2; y = pageH / 2; }
+            default -> { x = margin; y = margin; } // Inferior izquierda
+        }
+
+        try {
+            StampService.stampText(document.pdbox(), page, text, x, y, fontSize);
+            state.markMutated();
+            statusLabel.setText("Texto insertado en la página " + (page + 1));
+        } catch (Exception ex) {
+            showError("No se pudo insertar el texto", ex.getMessage());
+        }
+    }
+
+    private void ocrCurrentPage() {
+        if (!state.hasDocument()) {
+            return;
+        }
+        Path dataPath = OcrService.defaultDataPath();
+        if (!OcrService.isDataAvailable(dataPath)) {
+            showError("OCR no disponible",
+                    "No se encontraron datos de idioma (tessdata) en:\n"
+                            + dataPath.toAbsolutePath()
+                            + "\n\nDescarga los modelos de idioma y colócalos ahí (ver README).");
+            return;
+        }
+        int page = state.getCurrentPage();
+        statusLabel.setText("Reconociendo texto (OCR) de la página " + (page + 1) + "…");
+        runBackground(() -> {
+            String text = OcrService.ocrPage(
+                    state.getDocument(), page, OcrService.DEFAULT_LANGUAGES, dataPath);
+            Platform.runLater(() -> {
+                statusLabel.setText("OCR completado (página " + (page + 1) + ")");
+                showOcrResult(page, text);
+            });
+        }, "No se pudo ejecutar el OCR");
+    }
+
+    private void showOcrResult(int page, String text) {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Texto reconocido");
+        dialog.setHeaderText("OCR de la página " + (page + 1));
+        dialog.initOwner(stage);
+
+        TextArea area = new TextArea(text.isEmpty() ? "(no se reconoció texto)" : text);
+        area.setEditable(false);
+        area.setWrapText(true);
+        area.setPrefSize(560, 400);
+        dialog.getDialogPane().setContent(area);
+
+        ButtonType copy = new ButtonType("Copiar", ButtonType.OK.getButtonData());
+        dialog.getDialogPane().getButtonTypes().addAll(copy, ButtonType.CLOSE);
+        dialog.getDialogPane().lookupButton(copy).addEventFilter(
+                javafx.event.ActionEvent.ACTION, event -> {
+                    ClipboardContent clip = new ClipboardContent();
+                    clip.putString(text);
+                    Clipboard.getSystemClipboard().setContent(clip);
+                    statusLabel.setText("Texto copiado al portapapeles");
+                    event.consume();
+                });
+        dialog.showAndWait();
+    }
+
     // ------------------------------------------------- operaciones de página
 
     private void rotateCurrent(int degrees) {
@@ -565,6 +663,45 @@ public final class MainView {
         return dialog.showAndWait();
     }
 
+    private Optional<TextContent> askText() {
+        Dialog<TextContent> dialog = new Dialog<>();
+        dialog.setTitle("Insertar texto");
+        dialog.setHeaderText("Texto a insertar en la página actual");
+        dialog.initOwner(stage);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        TextField text = new TextField();
+        text.setPromptText("Escribe el texto…");
+        text.setPrefColumnCount(24);
+        Spinner<Integer> size = new Spinner<>(6, 96, 18, 1);
+        size.setEditable(true);
+        ComboBox<String> corner = new ComboBox<>();
+        corner.getItems().addAll("Inferior izquierda", "Inferior derecha",
+                "Superior izquierda", "Superior derecha", "Centro");
+        corner.setValue("Inferior izquierda");
+        corner.setMaxWidth(Double.MAX_VALUE);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(16));
+        grid.add(new Label("Texto:"), 0, 0);
+        grid.add(text, 1, 0);
+        grid.add(new Label("Tamaño (pt):"), 0, 1);
+        grid.add(size, 1, 1);
+        grid.add(new Label("Posición:"), 0, 2);
+        grid.add(corner, 1, 2);
+        dialog.getDialogPane().setContent(grid);
+
+        dialog.setResultConverter(button -> {
+            if (button == ButtonType.OK && !text.getText().isBlank()) {
+                return new TextContent(text.getText(), size.getValue(), corner.getValue());
+            }
+            return null;
+        });
+        return dialog.showAndWait();
+    }
+
     private boolean confirmDiscardChanges() {
         if (!state.isDirty()) {
             return true;
@@ -631,5 +768,9 @@ public final class MainView {
 
     /** Resultado del diálogo de inserción de imagen: esquina y anchura (pt). */
     private record Placement(String corner, double width) {
+    }
+
+    /** Resultado del diálogo de inserción de texto: contenido, tamaño y esquina. */
+    private record TextContent(String text, int fontSize, String corner) {
     }
 }
