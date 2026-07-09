@@ -24,6 +24,9 @@ Thumbs.db
 *.log
 *.tmp
 
+# Datos de idioma de Tesseract (binarios): se descargan aparte, ver README
+/tessdata/
+
 # Artefactos de empaquetado local (instaladores generados)
 build/*.exe
 build/*.msi

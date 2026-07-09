@@ -79,13 +79,21 @@ public final class PdfDocument implements Closeable {
      * @param dpi       resolución de render (96 ≈ tamaño natural en pantalla)
      */
     public Image renderPage(int pageIndex, float dpi) throws IOException {
-        if (pageIndex < 0 || pageIndex >= pageCount()) {
-            throw new IndexOutOfBoundsException("Página fuera de rango: " + pageIndex);
-        }
-        var buffered = renderer.renderImageWithDPI(pageIndex, dpi, ImageType.RGB);
+        var buffered = renderPageImage(pageIndex, dpi);
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         ImageIO.write(buffered, "png", buffer);
         return new Image(new ByteArrayInputStream(buffer.toByteArray()));
+    }
+
+    /**
+     * Renderiza una página a un {@link java.awt.image.BufferedImage}, útil para
+     * procesos que trabajan con imágenes AWT (p. ej. OCR).
+     */
+    public java.awt.image.BufferedImage renderPageImage(int pageIndex, float dpi) throws IOException {
+        if (pageIndex < 0 || pageIndex >= pageCount()) {
+            throw new IndexOutOfBoundsException("Página fuera de rango: " + pageIndex);
+        }
+        return renderer.renderImageWithDPI(pageIndex, dpi, ImageType.RGB);
     }
 
     @Override

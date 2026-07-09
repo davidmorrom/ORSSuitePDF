@@ -15,6 +15,7 @@
         <javafx.version>21.0.2</javafx.version>
         <pdfbox.version>3.0.2</pdfbox.version>
         <atlantafx.version>2.0.1</atlantafx.version>
+        <tess4j.version>5.11.0</tess4j.version>
         <junit.version>5.10.2</junit.version>
         <!-- Clase JavaFX (Application) para ejecución en desarrollo con
              javafx:run, y lanzadora sin Application para el fat jar / jpackage. -->
@@ -53,6 +54,15 @@
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>
             <version>${pdfbox.version}</version>
+        </dependency>
+
+        <!-- OCR: Tess4J incluye los binarios nativos de Tesseract, de modo
+             que el reconocimiento funciona sin instalar nada aparte. Solo
+             requiere los datos de idioma (tessdata) — ver README/OCR. -->
+        <dependency>
+            <groupId>net.sourceforge.tess4j</groupId>
+            <artifactId>tess4j</artifactId>
+            <version>${tess4j.version}</version>
         </dependency>
 
         <!-- Tests -->
