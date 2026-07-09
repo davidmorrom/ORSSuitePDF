@@ -1,6 +1,7 @@
 package com.orsconsulting.orssuitepdf.core;
 
 import com.orsconsulting.orssuitepdf.ui.Branding;
+import com.orsconsulting.orssuitepdf.ui.Fonts;
 import com.orsconsulting.orssuitepdf.ui.MainView;
 
 import atlantafx.base.theme.PrimerLight;
@@ -19,6 +20,7 @@ public class Main extends Application {
 
     @Override
     public void start(Stage stage) {
+        Fonts.load();
         setUserAgentStylesheet(new PrimerLight().getUserAgentStylesheet());
 
         MainView mainView = new MainView(stage);

@@ -139,10 +139,14 @@ public final class MainView {
     private Button rotateRightButton;
     private Button deleteButton;
 
+    /** Hoja de estilos de marca, compartida por la ventana y los diálogos. */
+    static final String APP_CSS =
+            MainView.class.getResource("/css/app.css").toExternalForm();
+
     public MainView(Stage stage) {
         this.stage = stage;
-        root.getStylesheets().add(
-                MainView.class.getResource("/css/app.css").toExternalForm());
+        root.getStylesheets().add(APP_CSS);
+        installDialogTheming();
         root.setLeft(buildRail());
         root.setTop(buildContextBar());
         root.setCenter(buildWorkspace());
@@ -200,6 +204,7 @@ public final class MainView {
 
     private Region buildWorkspace() {
         documentsPane.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
+        documentsPane.getStyleClass().add("document-tabs");
         workspace.getChildren().add(documentsPane);
         documentsPane.getTabs().addListener(
                 (javafx.collections.ListChangeListener<Tab>) c -> refreshWelcome());
@@ -230,11 +235,7 @@ public final class MainView {
     private Region buildRail() {
         ToggleGroup group = new ToggleGroup();
 
-        javafx.scene.image.ImageView brand = new javafx.scene.image.ImageView(Branding.symbol());
-        brand.setFitWidth(30);
-        brand.setFitHeight(30);
-        brand.setPreserveRatio(true);
-        StackPane brandMark = new StackPane(brand);
+        StackPane brandMark = (StackPane) Branding.markWhite(34);
         brandMark.getStyleClass().add("brand-mark");
 
         ToggleButton doc = railButton(Feather.FILE_TEXT, "Documento", group, "doc");
@@ -242,7 +243,7 @@ public final class MainView {
         ToggleButton pages = railButton(Feather.LAYERS, "Páginas", group, "pages");
         ToggleButton insert = railButton(Feather.PLUS_SQUARE, "Insertar", group, "insert");
         ToggleButton annot = railButton(Feather.EDIT_2, "Anotar", group, "annot");
-        ToggleButton tools = railButton(Feather.TOOL, "Herramientas", group, "tools");
+        ToggleButton tools = railButton(Feather.TOOL, "Herram.", group, "tools");
         ToggleButton sign = railButton(Feather.FEATHER, "Firma", group, "sign");
 
         Region grow = new Region();
@@ -250,12 +251,12 @@ public final class MainView {
 
         boolean dark = prefs.getBoolean(PREF_DARK, false);
         themeButton = new Button(null, fi(dark ? Feather.SUN : Feather.MOON));
-        themeButton.getStyleClass().add("rail-button");
+        themeButton.getStyleClass().addAll("rail-icon", "rail-theme");
         themeButton.setTooltip(new Tooltip("Alternar modo claro / oscuro"));
         themeButton.setOnAction(e -> applyTheme(!prefs.getBoolean(PREF_DARK, false)));
 
         Button about = new Button(null, fi(Feather.INFO));
-        about.getStyleClass().add("rail-button");
+        about.getStyleClass().add("rail-icon");
         about.setTooltip(new Tooltip("Acerca de ORS Suite PDF"));
         about.setOnAction(e -> showAbout());
 
@@ -265,11 +266,11 @@ public final class MainView {
         return rail;
     }
 
-    private ToggleButton railButton(Feather ikon, String tip, ToggleGroup group, String section) {
-        ToggleButton button = new ToggleButton(null, fi(ikon));
+    private ToggleButton railButton(Feather ikon, String label, ToggleGroup group, String section) {
+        ToggleButton button = new ToggleButton(label, fi(ikon));
         button.getStyleClass().add("rail-button");
         button.setToggleGroup(group);
-        button.setTooltip(new Tooltip(tip));
+        button.setTooltip(new Tooltip(label));
         button.setOnAction(e -> {
             if (!button.isSelected()) {
                 // Impide que un clic en la sección activa deje el riel sin selección.
@@ -371,6 +372,48 @@ public final class MainView {
 
     private Separator sep() {
         return new Separator(javafx.geometry.Orientation.VERTICAL);
+    }
+
+    /**
+     * Aplica el tema de marca a todos los diálogos y alertas: cuando aparece
+     * una ventana hija (propiedad de esta o descendiente), le inyecta la hoja
+     * de estilos y la clase {@code app-dialog}, y replica el modo oscuro. Así
+     * los {@code Dialog}/{@code Alert} nativos heredan la identidad visual sin
+     * tener que estilarlos uno a uno.
+     */
+    private void installDialogTheming() {
+        javafx.stage.Window.getWindows().addListener(
+                (javafx.collections.ListChangeListener<javafx.stage.Window>) change -> {
+                    while (change.next()) {
+                        for (javafx.stage.Window window : change.getAddedSubList()) {
+                            themeChildWindow(window);
+                        }
+                    }
+                });
+    }
+
+    private void themeChildWindow(javafx.stage.Window window) {
+        if (window == stage) {
+            return;
+        }
+        // Solo ventanas asociadas a nuestra aplicación (diálogos con owner).
+        javafx.scene.Scene scene = window.getScene();
+        if (scene == null || scene.getRoot() == null) {
+            // La escena aún no está lista: reintenta cuando se asigne.
+            window.sceneProperty().addListener((o, a, b) -> themeChildWindow(window));
+            return;
+        }
+        if (!scene.getStylesheets().contains(APP_CSS)) {
+            scene.getStylesheets().add(APP_CSS);
+        }
+        var styleClasses = scene.getRoot().getStyleClass();
+        if (!styleClasses.contains("app-dialog")) {
+            styleClasses.add("app-dialog");
+        }
+        styleClasses.remove("dark");
+        if (prefs.getBoolean(PREF_DARK, false)) {
+            styleClasses.add("dark");
+        }
     }
 
     /** Registra los aceleradores de teclado una vez la escena está disponible. */
@@ -1626,11 +1669,17 @@ public final class MainView {
         // --- Vista previa en vivo ---
         Label preview = new Label();
         preview.setWrapText(true);
-        preview.setStyle("-fx-font-family: 'sans-serif'; -fx-font-size: 12px; -fx-text-fill: #1C3C72;"
-                + " -fx-background-color: white; -fx-border-color: #1A5EA8; -fx-border-width: 1;"
-                + " -fx-padding: 10; -fx-min-height: 90;");
+        preview.setStyle("-fx-font-family: 'IBM Plex Sans'; -fx-font-size: 12px;"
+                + " -fx-text-fill: -color-accent-emphasis;"
+                + " -fx-background-color: -color-bg-default;"
+                + " -fx-border-color: -color-accent-emphasis; -fx-border-width: 1.5;"
+                + " -fx-border-radius: 7; -fx-background-radius: 7;"
+                + " -fx-padding: 13 15; -fx-min-height: 104;");
         preview.setMaxWidth(Double.MAX_VALUE);
-        VBox previewBox = new VBox(6, new Label("Vista previa"), preview);
+        Label previewTitle = new Label("VISTA PREVIA");
+        previewTitle.getStyleClass().add("mono");
+        previewTitle.setStyle("-fx-font-size: 10px; -fx-text-fill: -color-fg-subtle;");
+        VBox previewBox = new VBox(9, previewTitle, preview);
         previewBox.setPrefWidth(280);
 
         Runnable refreshPreview = () -> {
@@ -1661,9 +1710,11 @@ public final class MainView {
         refreshPreview.run();
 
         Label pinHint = new Label("Al firmar, el sistema pedirá el PIN si usas DNIe o tarjeta.");
-        pinHint.getStyleClass().add("text-muted");
         pinHint.setWrapText(true);
-        previewBox.getChildren().add(pinHint);
+        HBox pinNote = new HBox(8, fi(Feather.INFO), pinHint);
+        pinNote.getStyleClass().add("info-note");
+        HBox.setHgrow(pinHint, Priority.ALWAYS);
+        previewBox.getChildren().add(pinNote);
 
         HBox content = new HBox(20, options, previewBox);
         content.setPadding(new Insets(16));
@@ -2011,6 +2062,7 @@ public final class MainView {
             form.setClosable(false);
             TabPane sidebar = new TabPane(pages, bookmarks, form);
             sidebar.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+            sidebar.getStyleClass().add("sidebar-tabs");
 
             SplitPane split = new SplitPane(sidebar, pdfView);
             split.setDividerPositions(0.24);

@@ -84,8 +84,9 @@ public final class PdfView extends StackPane {
         scroll.setContent(pagesBox);
         scroll.setFitToWidth(true);
         scroll.setPannable(true);
-        scroll.setStyle("-fx-background-color: -color-bg-subtle;");
+        scroll.getStyleClass().add("pdf-scroll");
 
+        getStyleClass().add("pdf-view");
         placeholder.getStyleClass().add("text-muted");
 
         setAlignment(Pos.CENTER);

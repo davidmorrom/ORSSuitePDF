@@ -1,143 +1,235 @@
 /*
- * ORS Suite PDF — capa de marca sobre AtlantaFX (Primer light/dark).
+ * ORS Suite PDF — sistema visual sobre AtlantaFX.
  *
- * Se carga en el subárbol de la ventana principal (root.getStylesheets),
- * por encima del user-agent stylesheet de AtlantaFX, de modo que redefine
- * el acento a los azules de ORS y estiliza el riel lateral, la barra de
- * herramientas contextual, la barra de estado y las barras de scroll.
+ * Reconstruye la especificación de diseño «ORS Suite PDF — Rediseño de
+ * interfaz» (handoff de Claude Design): riel azul marino con etiquetas,
+ * barra contextual, barra de estado, pestañas, panel lateral, visor y
+ * barras de scroll de acento. Tipografía IBM Plex Sans (UI) + IBM Plex
+ * Mono (valores técnicos).
  *
- * Todo se expresa a través de los design tokens de AtlantaFX
- * (-color-accent-*, -color-fg-*, -color-bg-*, -color-border-*), por lo que
- * el modo claro y el oscuro funcionan con las mismas reglas.
+ * Todo se expresa mediante los design tokens de AtlantaFX, redefinidos aquí
+ * con la paleta ORS para el modo claro (.root) y el oscuro (.dark).
  */
 
-/* -------------------------------------------------- acento de marca ORS */
+/* ============================ PALETA · CLARO ============================ */
+
+/*
+ * Los tokens estándar de fondo/texto/borde (-color-bg-*, -color-fg-*,
+ * -color-border-*, -color-success-*) los gestiona AtlantaFX (PrimerLight /
+ * PrimerDark) y cambian solos con el tema. Aquí SOLO reasignamos el acento a
+ * los azules ORS y definimos los tokens propios -ors-* (superficies concretas
+ * del spec que AtlantaFX no cubre). Redefinir los estándar en .root rompería
+ * el cambio de tema, así que no se tocan.
+ */
 
 .root {
     -ors-brand: #1A5EA8;
-    -ors-brand-deep: #1C3C72;
-    -ors-brand-tint: #2b74c4;
+    -ors-deep:  #1C3C72;
+    -ors-mid:   #4A90D9;
+    -ors-light: #C8DEF5;
 
-    /* Reasigna el acento de AtlantaFX al azul de ORS. */
-    -color-accent-fg: -ors-brand;
+    -fx-font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+
+    -color-accent-fg:       -ors-brand;
     -color-accent-emphasis: -ors-brand;
-    -color-accent-muted: derive(-ors-brand, 40%);
-    -color-accent-subtle: derive(-ors-brand, 82%);
+    -color-accent-muted:    -ors-mid;
+    -color-accent-subtle:   #EAF1FA;
+
+    /* Riel (degradado azul marino, fijo en ambos temas). */
+    -ors-rail-top:     #1C3C72;
+    -ors-rail-bottom:  #15305C;
+    -ors-rail-fg:      #9DB6DA;
+    -ors-rail-active:  rgba(74,144,217,0.20);
+
+    /* Superficies concretas del spec (modo claro). */
+    -ors-titlebar:  #E7EEF6;
+    -ors-viewer:    #EBF0F6;
+    -ors-sidebar:   #F7FAFD;
+    -ors-tabstrip:  #F4F7FB;
+    -ors-warn-bg:   #FBF5E7;
+    -ors-warn-brd:  #EFE0BC;
+    -ors-warn-fg:   #7A6420;
 }
 
-/* En modo oscuro el acento se aclara para mantener el contraste. */
+/* ============================ PALETA · OSCURO =========================== */
+
 .dark {
-    -ors-brand: #4b90d8;
-    -ors-brand-tint: #6aa6e4;
+    -ors-brand: #2C6FB8;
+    -ors-mid:   #5FA1E6;
 
-    -color-accent-fg: -ors-brand;
+    -color-accent-fg:       -ors-mid;
     -color-accent-emphasis: -ors-brand;
-    -color-accent-muted: derive(-ors-brand, -25%);
-    -color-accent-subtle: derive(-ors-brand, -55%);
+    -color-accent-muted:    -ors-mid;
+    -color-accent-subtle:   #16273D;
+
+    -ors-rail-top:     #16305C;
+    -ors-rail-bottom:  #0C1A30;
+    -ors-rail-fg:      #9DB6DA;
+    -ors-rail-active:  rgba(74,144,217,0.22);
+
+    /* Superficies concretas del spec (modo oscuro). */
+    -ors-titlebar:  #14243B;
+    -ors-viewer:    #0A1420;
+    -ors-sidebar:   #101E30;
+    -ors-tabstrip:  #101E30;
+    -ors-warn-bg:   #2A2410;
+    -ors-warn-brd:  #4A3F1A;
+    -ors-warn-fg:   #D8C583;
 }
 
-/* -------------------------------------------------------- iconos Ikonli */
+/* ============================== UTILIDADES ============================== */
 
-/* Por defecto los iconos toman el gris de primer plano atenuado. */
+.mono {
+    -fx-font-family: "IBM Plex Mono", "Consolas", monospace;
+}
+
+/* Iconos Ikonli: color heredado del contexto. */
 .ikonli-font-icon {
     -fx-icon-color: -color-fg-muted;
-    -fx-icon-size: 18px;
+    -fx-icon-size: 17px;
 }
 
 .button:hover .ikonli-font-icon,
-.toggle-button:hover .ikonli-font-icon,
 .menu-button:hover .ikonli-font-icon {
     -fx-icon-color: -color-fg-default;
 }
 
-/* Botones de acento (Guardar, Firmar): icono y texto en blanco. */
-.button.accent .ikonli-font-icon {
+.button.accent .ikonli-font-icon,
+.button:default .ikonli-font-icon {
     -fx-icon-color: -color-fg-emphasis;
 }
 
-/* --------------------------------------------------------- riel lateral */
+/* ============================= RIEL LATERAL ============================= */
 
 .rail {
-    -fx-background-color: -color-bg-subtle;
-    -fx-border-color: -color-border-muted;
-    -fx-border-width: 0 1 0 0;
-    -fx-padding: 8 0 8 0;
+    -fx-background-color: linear-gradient(to bottom, -ors-rail-top, -ors-rail-bottom);
+    -fx-padding: 14 0 14 0;
     -fx-spacing: 2;
     -fx-alignment: TOP_CENTER;
 }
 
 .rail .brand-mark {
-    -fx-padding: 2 0 10 0;
+    -fx-padding: 0 0 12 0;
 }
 
-/* Botones de sección del riel: cuadrados, redondeados, sin adorno por
-   defecto; el estado seleccionado usa el acento de marca. */
 .rail-button {
     -fx-background-color: transparent;
-    -fx-background-radius: 8px;
-    -fx-min-width: 46px;
-    -fx-min-height: 46px;
-    -fx-max-width: 46px;
-    -fx-max-height: 46px;
+    -fx-background-radius: 10px;
+    -fx-min-width: 58px;
+    -fx-max-width: 58px;
+    -fx-min-height: 56px;
+    -fx-max-height: 56px;
+    -fx-content-display: top;
+    -fx-graphic-text-gap: 5px;
     -fx-cursor: hand;
-    -fx-content-display: graphic-only;
+    -fx-text-fill: -ors-rail-fg;
+    -fx-font-size: 9px;
+    -fx-font-weight: 500;
 }
 
 .rail-button .ikonli-font-icon {
+    -fx-icon-color: -ors-rail-fg;
     -fx-icon-size: 21px;
 }
 
 .rail-button:hover {
-    -fx-background-color: -color-bg-inset;
+    -fx-background-color: rgba(255,255,255,0.06);
 }
 
 .rail-button:selected {
-    -fx-background-color: -color-accent-subtle;
+    -fx-background-color: -ors-rail-active;
+    -fx-text-fill: white;
 }
 
 .rail-button:selected .ikonli-font-icon {
-    -fx-icon-color: -color-accent-fg;
+    -fx-icon-color: white;
 }
 
-/* ------------------------------------------------ toolbar contextual */
+/* Botones inferiores del riel (tema, acerca de): solo icono, más bajos. */
+.rail-icon {
+    -fx-background-color: transparent;
+    -fx-background-radius: 10px;
+    -fx-min-width: 46px;
+    -fx-max-width: 46px;
+    -fx-min-height: 44px;
+    -fx-max-height: 44px;
+    -fx-cursor: hand;
+}
+
+.rail-icon .ikonli-font-icon {
+    -fx-icon-color: -ors-rail-fg;
+    -fx-icon-size: 20px;
+}
+
+.rail-icon:hover {
+    -fx-background-color: rgba(255,255,255,0.06);
+}
+
+.dark .rail-theme .ikonli-font-icon {
+    -fx-icon-color: #F0C674;
+}
+
+/* ========================= BARRA CONTEXTUAL ============================ */
 
 .context-bar {
-    -fx-background-color: -color-bg-subtle;
-    -fx-border-color: -color-border-muted;
+    -fx-background-color: -color-bg-default;
+    -fx-border-color: -color-border-default;
     -fx-border-width: 0 0 1 0;
-    -fx-padding: 6 10 6 10;
-    -fx-spacing: 4;
+    -fx-padding: 10 12 10 12;
+    -fx-spacing: 3;
     -fx-alignment: CENTER_LEFT;
 }
 
 .context-bar .section-title {
-    -fx-text-fill: -color-fg-subtle;
+    -fx-font-family: "IBM Plex Mono", "Consolas", monospace;
     -fx-font-size: 10.5px;
-    -fx-font-weight: bold;
-    -fx-padding: 0 8 0 2;
+    -fx-font-weight: 600;
+    -fx-text-fill: -color-fg-subtle;
+    -fx-padding: 0 12 0 4;
 }
 
-/* Botones de la toolbar: texto + icono, fondo plano que se realza al pasar. */
 .context-bar .button,
 .context-bar .menu-button {
     -fx-background-color: transparent;
-    -fx-background-radius: 6px;
+    -fx-background-radius: 7px;
+    -fx-text-fill: -color-fg-default;
     -fx-graphic-text-gap: 7px;
-    -fx-padding: 6 11 6 11;
+    -fx-font-size: 13px;
+    -fx-font-weight: 500;
+    -fx-padding: 7 12 7 12;
 }
 
 .context-bar .button:hover,
-.context-bar .menu-button:hover {
+.context-bar .menu-button:hover,
+.context-bar .menu-button:showing {
     -fx-background-color: -color-bg-inset;
 }
 
-/* --------------------------------------------------------- barra de estado */
+.context-bar .button.accent {
+    -fx-background-color: -color-accent-emphasis;
+    -fx-text-fill: -color-fg-emphasis;
+    -fx-font-weight: 600;
+    -fx-effect: dropshadow(gaussian, rgba(26,94,168,0.35), 4, 0, 0, 1);
+}
+
+.context-bar .button.accent:hover {
+    -fx-background-color: derive(-color-accent-emphasis, 8%);
+}
+
+/* Separadores verticales tenues. */
+.context-bar .separator:vertical .line,
+.status-bar .separator:vertical .line {
+    -fx-border-color: -color-border-default;
+    -fx-border-width: 0 1 0 0;
+}
+
+/* =========================== BARRA DE ESTADO =========================== */
 
 .status-bar {
-    -fx-background-color: -color-bg-subtle;
-    -fx-border-color: -color-border-muted;
+    -fx-background-color: -color-bg-default;
+    -fx-border-color: -color-border-default;
     -fx-border-width: 1 0 0 0;
-    -fx-padding: 3 12 3 12;
+    -fx-padding: 4 14 4 14;
     -fx-spacing: 10;
     -fx-alignment: CENTER_LEFT;
 }
@@ -147,69 +239,138 @@
     -fx-font-size: 12px;
 }
 
-.status-bar .saved-pill {
-    -fx-text-fill: -color-success-fg;
-    -fx-graphic-text-gap: 5px;
+.status-bar .page-value,
+.status-bar .zoom-value {
+    -fx-font-family: "IBM Plex Mono", "Consolas", monospace;
+    -fx-text-fill: -color-fg-default;
+    -fx-font-size: 12px;
 }
 
-.status-bar .saved-pill .ikonli-font-icon {
-    -fx-icon-color: -color-success-fg;
-    -fx-icon-size: 14px;
+.status-bar .zoom-value {
+    -fx-min-width: 46px;
+    -fx-alignment: CENTER;
 }
 
-/* Botones compactos de navegación y zoom en la barra de estado. */
 .status-bar .button {
     -fx-background-color: transparent;
     -fx-background-radius: 5px;
-    -fx-padding: 3 7 3 7;
+    -fx-padding: 4 6 4 6;
 }
 
 .status-bar .button:hover {
     -fx-background-color: -color-bg-inset;
 }
 
-.status-bar .zoom-value {
-    -fx-min-width: 92px;
-    -fx-alignment: CENTER;
+.status-bar .button .ikonli-font-icon {
+    -fx-icon-size: 15px;
 }
 
-/* La barra de búsqueda comparte el aspecto de la barra de estado. */
+/* ========================= BARRA DE BÚSQUEDA ========================== */
+
 .search-bar {
-    -fx-background-color: -color-bg-subtle;
-    -fx-border-color: -color-border-muted;
+    -fx-background-color: -ors-tabstrip;
+    -fx-border-color: -color-border-default;
     -fx-border-width: 1 0 0 0;
-    -fx-padding: 6 12 6 12;
-    -fx-spacing: 8;
+    -fx-padding: 8 14 8 14;
+    -fx-spacing: 10;
     -fx-alignment: CENTER_LEFT;
 }
 
-/* ----------------------------------------- pestañas de documentos */
+/* ===================== PESTAÑAS DE DOCUMENTO ========================== */
 
-.document-tabs .tab-header-area {
-    -fx-padding: 4 6 0 6;
+.document-tabs {
+    -fx-background-color: -ors-tabstrip;
 }
 
-/* ---------------------------- barras de scroll anchas y visibles ----------
- * Requisito de accesibilidad (baja visión): más anchas y con el pulgar en
- * color de acento de alto contraste, siempre visible.
+.document-tabs > .tab-header-area {
+    -fx-padding: 5 8 0 8;
+}
+
+.document-tabs > .tab-header-area > .tab-header-background {
+    -fx-background-color: -ors-tabstrip;
+}
+
+.document-tabs .tab {
+    -fx-background-color: transparent;
+    -fx-background-radius: 8 8 0 0;
+    -fx-padding: 6 12 6 12;
+}
+
+.document-tabs .tab:selected {
+    -fx-background-color: -color-bg-default;
+    -fx-border-color: -color-border-default;
+    -fx-border-width: 1 1 0 1;
+    -fx-border-radius: 8 8 0 0;
+}
+
+.document-tabs .tab .tab-label {
+    -fx-text-fill: -color-fg-muted;
+    -fx-font-size: 12.5px;
+}
+
+.document-tabs .tab:selected .tab-label {
+    -fx-text-fill: -color-fg-default;
+    -fx-font-weight: 500;
+}
+
+/* ===================== PANEL LATERAL (miniaturas…) ==================== */
+
+.sidebar-tabs {
+    -fx-background-color: -ors-sidebar;
+}
+
+.sidebar-tabs > .tab-header-area > .tab-header-background {
+    -fx-background-color: -ors-sidebar;
+}
+
+.sidebar-tabs .tab-label {
+    -fx-font-size: 12.5px;
+    -fx-text-fill: -color-fg-subtle;
+}
+
+.sidebar-tabs .tab:selected .tab-label {
+    -fx-text-fill: -color-accent-fg;
+    -fx-font-weight: 600;
+}
+
+/* ============================== VISOR PDF ============================= */
+
+.pdf-view {
+    -fx-background-color: -ors-viewer;
+}
+
+.pdf-scroll,
+.pdf-scroll > .viewport {
+    -fx-background-color: -ors-viewer;
+}
+
+.pdf-scroll {
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+/* =============== BARRAS DE SCROLL — anchas y de acento ===============
+ * Requisito de accesibilidad (baja visión): anchas, con el pulgar en
+ * color de acento y bien contrastado, siempre visible.
  */
 
 .scroll-bar:vertical {
-    -fx-pref-width: 16px;
+    -fx-pref-width: 14px;
 }
 
 .scroll-bar:horizontal {
-    -fx-pref-height: 16px;
+    -fx-pref-height: 14px;
 }
 
 .scroll-bar {
     -fx-background-color: -color-bg-inset;
+    -fx-background-radius: 8px;
 }
 
 .scroll-bar .thumb {
-    -fx-background-color: derive(-ors-brand, 25%);
+    -fx-background-color: -ors-mid;
     -fx-background-radius: 8px;
-    -fx-background-insets: 3;
+    -fx-background-insets: 2;
 }
 
 .scroll-bar .thumb:hover {
@@ -217,24 +378,96 @@
 }
 
 .scroll-bar .thumb:pressed {
-    -fx-background-color: -ors-brand-deep;
+    -fx-background-color: -ors-deep;
 }
 
-/* Botones de incremento/decremento discretos pero presentes. */
 .scroll-bar .increment-button,
 .scroll-bar .decrement-button {
     -fx-background-color: transparent;
-    -fx-padding: 4;
+    -fx-padding: 3;
 }
 
 .scroll-bar .increment-arrow,
 .scroll-bar .decrement-arrow {
-    -fx-background-color: -color-fg-muted;
+    -fx-background-color: -color-fg-subtle;
+    -fx-padding: 3px;
 }
 
-/* --------------------------------------------------- pantalla de inicio */
+/* ============================== DIÁLOGOS ============================== */
 
-.welcome-title {
+.app-dialog {
+    -fx-font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+    -fx-background-color: -color-bg-default;
+}
+
+.app-dialog .header-panel {
+    -fx-background-color: -color-bg-default;
+}
+
+.app-dialog .header-panel .label {
+    -fx-text-fill: -color-fg-default;
     -fx-font-size: 15px;
+    -fx-font-weight: 700;
+}
+
+.app-dialog > .button-bar {
+    -fx-background-color: derive(-color-bg-subtle, 1%);
+}
+
+.app-dialog .content .label {
+    -fx-text-fill: -color-fg-default;
+}
+
+/* Cabecera con "chip" de icono (diálogos con gráfico). */
+.dialog-icon-chip {
+    -fx-background-color: -color-accent-subtle;
+    -fx-background-radius: 8px;
+    -fx-min-width: 34px;
+    -fx-min-height: 34px;
+    -fx-max-width: 34px;
+    -fx-max-height: 34px;
+    -fx-alignment: CENTER;
+}
+
+.dialog-icon-chip .ikonli-font-icon {
+    -fx-icon-color: -color-accent-fg;
+    -fx-icon-size: 19px;
+}
+
+/* Aviso tipo "info" (p. ej. PIN del DNIe). */
+.info-note {
+    -fx-background-color: -ors-warn-bg;
+    -fx-border-color: -ors-warn-brd;
+    -fx-border-width: 1;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 10 12 10 12;
+}
+
+.info-note .label {
+    -fx-text-fill: -ors-warn-fg;
+    -fx-font-size: 11.5px;
+}
+
+/* =========================== PANTALLA DE INICIO ======================= */
+
+.welcome {
+    -fx-background-color: -ors-tabstrip;
+}
+
+.welcome-subtitle {
     -fx-text-fill: -color-fg-muted;
+    -fx-font-size: 14px;
+}
+
+.welcome-hint {
+    -fx-text-fill: -color-fg-subtle;
+    -fx-font-size: 13px;
+}
+
+.welcome-recent-title {
+    -fx-font-family: "IBM Plex Mono", "Consolas", monospace;
+    -fx-font-size: 10.5px;
+    -fx-font-weight: 600;
+    -fx-text-fill: -color-fg-subtle;
 }
