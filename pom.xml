@@ -122,6 +122,16 @@
             <artifactId>dss-crl-parser-x509crl</artifactId>
             <version>${dss.version}</version>
         </dependency>
+        <!-- Validación con listas de confianza europeas (LOTL): permite que la
+             comprobación de firmas construya la cadena hasta las CA cualificadas
+             (FNMT, DNIe, ACCV…) y devuelva un resultado de confianza real. La
+             descarga del LOTL es online con caché en disco (offline-first tras
+             la primera sincronización) — ver ADR-002. -->
+        <dependency>
+            <groupId>eu.europa.ec.joinup.sd-dss</groupId>
+            <artifactId>dss-tsl-validation</artifactId>
+            <version>${dss.version}</version>
+        </dependency>
 
         <!-- Tests -->
         <dependency>
@@ -184,6 +194,18 @@
                                         <exclude>META-INF/*.DSA</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
                                         <exclude>module-info.class</exclude>
+                                    </excludes>
+                                </filter>
+                                <!-- El XAdES.xsd que trae DSS (specs-xades) es la
+                                     versión pre-2016, sin SigningCertificateV2, y
+                                     hace fallar el parsing del LOTL europeo actual.
+                                     Se excluye para que prevalezca la copia
+                                     corregida (v1.3.2 de 2016) en
+                                     src/main/resources/xsd/XAdES.xsd. -->
+                                <filter>
+                                    <artifact>eu.europa.ec.joinup.sd-dss:specs-xades</artifact>
+                                    <excludes>
+                                        <exclude>xsd/XAdES.xsd</exclude>
                                     </excludes>
                                 </filter>
                             </filters>

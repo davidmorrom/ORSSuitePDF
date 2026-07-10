@@ -25,6 +25,40 @@ lógica de la aplicación, sin necesidad de comunicación entre procesos.
   haya conexión, sin repetir el proceso de firma completo.
 - Ningún otro paquete (core, ui, ocr) depende de red.
 
+### TSA con lista de reserva
+La TSA no es un único punto de fallo: `PAdESSigner` prueba la TSA
+configurada y, si no responde, varias TSA de reserva (DigiCert, Sectigo…)
+antes de degradar a PAdES-B. El valor de firma se calcula una sola vez y
+se reutiliza entre TSA candidatas, de modo que con DNIe/tarjeta el PIN se
+pide una única vez aunque haya que probar más de una.
+
+### Confianza en la validación (LOTL) — segunda excepción online
+Para que la validación de firmas cualificadas (FNMT, DNIe, ACCV…) dé un
+veredicto de confianza real y no `INDETERMINATE`, se usan las listas de
+confianza europeas (EU LOTL) vía `dss-tsl-validation` (`TrustService`):
+- **Offline-first:** al arrancar se carga la confianza desde una caché en
+  disco (`~/.ors-suite-pdf/tl-cache`) de forma instantánea, y la
+  actualización online se hace en segundo plano; si nunca ha habido red y
+  no hay caché, la validación sigue funcionando pero sin cadena de
+  confianza.
+- La revocación en la validación (OCSP/CRL) y el descubrimiento de
+  intermedios (AIA) son online, con degradación a validación local si no
+  hay red — coherente con el principio offline-first.
+- Los certificados públicos del Diario Oficial que firman el LOTL se
+  versionan como PEM (`/trust/eu-oj-lotl-signers.pem`); no es clave
+  privada. El keystore .p12 se evita a propósito por la regla de
+  `.gitignore` que veta material `*.p12`.
+
+### Nota de compatibilidad: XSD de XAdES
+DSS 5.11 (y hasta 5.13) compone el esquema de validación de las listas de
+confianza con la versión pre-2016 de `XAdES.xsd`, que no define
+`SigningCertificateV2`. El LOTL europeo actual está firmado en XAdES-EN y
+usa ese elemento, por lo que el parsing falla
+(`cvc-complex-type.2.4.a`). Se corrige incluyendo en el classpath, con
+prioridad sobre el de DSS, la versión de 2016 del esquema v1.3.2
+(`/xsd/XAdES.xsd`, superconjunto compatible); en el fat jar, el
+`maven-shade-plugin` excluye el XSD obsoleto de `specs-xades`.
+
 ## Consecuencias
 - Necesita un pequeño almacén local (ej. SQLite embebido o fichero JSON)
   para la cola de documentos pendientes de re-timbrado.

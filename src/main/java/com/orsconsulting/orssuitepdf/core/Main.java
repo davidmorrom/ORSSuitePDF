@@ -1,5 +1,6 @@
 package com.orsconsulting.orssuitepdf.core;
 
+import com.orsconsulting.orssuitepdf.signing.TrustService;
 import com.orsconsulting.orssuitepdf.ui.Branding;
 import com.orsconsulting.orssuitepdf.ui.Fonts;
 import com.orsconsulting.orssuitepdf.ui.MainView;
@@ -30,6 +31,11 @@ public class Main extends Application {
         stage.getIcons().setAll(Branding.appIcons());
         stage.setScene(scene);
         stage.show();
+
+        // Sincroniza las listas de confianza europeas (LOTL) en segundo plano
+        // para que la validación de firmas disponga de la cadena de confianza
+        // cualificada; no bloquea el arranque y usa la caché si no hay red.
+        TrustService.refreshInBackground();
 
         // Cierra la pantalla splash (java.awt.SplashScreen) una vez montada la UI.
         try {
